@@ -274,6 +274,7 @@ export function registerInfrastructureV3({
         runDashboardView('incidents').catch(() => ({ stdout: '' })),
         runDashboardView('deployments').catch(() => ({ stdout: '' }))
       ])
+      const deployments = await readJsonl(V2_DEPLOY_FILE, 200)
       const snapshot = {
         id: crypto.randomUUID(),
         at: new Date().toISOString(),
@@ -289,7 +290,15 @@ export function registerInfrastructureV3({
           deployments: safeText(deploymentsView.stdout, 4000)
         }
       }
-      snapshot.reliability = scoreFromSnapshot(snapshot, snapshot.hermes.backup)
+      snapshot.reliability = scoreFromSnapshot(snapshot, {
+        selfTest: selfTestGetter?.() || {},
+        deepAcceptance: deepAcceptanceGetter?.() || {},
+        deployments,
+        securityWrappers:
+          existsSync('/usr/local/bin/hermes-ops-safe') &&
+          existsSync('/usr/local/bin/hermes-dashboard-safe') &&
+          existsSync('/usr/local/bin/hermes-telegram-send-safe')
+      })
       lastSnapshot = snapshot
       await appendJsonl(SNAPSHOT_FILE, snapshot)
       const sampleCount = (await readJsonl(SNAPSHOT_FILE, 6000)).length
