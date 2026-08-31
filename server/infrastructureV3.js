@@ -261,6 +261,7 @@ export function registerInfrastructureV3({
 }) {
   let snapshotBusy = false
   let lastSnapshot = null
+  let activeIncident = null
 
   async function collectSnapshot() {
     if (snapshotBusy) return lastSnapshot
@@ -299,6 +300,59 @@ export function registerInfrastructureV3({
           existsSync('/usr/local/bin/hermes-dashboard-safe') &&
           existsSync('/usr/local/bin/hermes-telegram-send-safe')
       })
+
+      const affectedNow = snapshot.apps
+        .filter((x) => !x.reachable || (x.status >= 500 && x.status !== 503))
+        .map((x) => x.app)
+        .sort()
+
+      if (affectedNow.length && !activeIncident) {
+        activeIncident = {
+          id: crypto.randomUUID(),
+          startedAt: snapshot.at,
+          affectedApps: affectedNow,
+          startResources: snapshot.resources,
+          startDeployments: snapshot.hermes.deployments,
+          startIncidents: snapshot.hermes.incidents
+        }
+      } else if (!affectedNow.length && activeIncident) {
+        const recovered = activeIncident
+        activeIncident = null
+        const report = {
+          id: recovered.id,
+          at: snapshot.at,
+          title: 'Automatic recovery postmortem',
+          automatic: true,
+          startedAt: recovered.startedAt,
+          recoveredAt: snapshot.at,
+          affectedApps: recovered.affectedApps,
+          summary: 'Infrastructure OS observed an availability incident and subsequent recovery.',
+          evidence: {
+            startResources: recovered.startResources,
+            recoveryResources: snapshot.resources,
+            deploymentStateAtStart: safeText(recovered.startDeployments, 1600),
+            incidentStateAtStart: safeText(recovered.startIncidents, 1600),
+            recoverySnapshot: snapshot.id
+          },
+          prevention: [
+            'Review deployment changes close to the incident start.',
+            'Keep Resource Guard and verified backups enabled.',
+            'Use Black Box and Time Machine telemetry for recurrence analysis.'
+          ]
+        }
+        await appendJsonl(POSTMORTEM_FILE, report, 1000)
+        await sendViaHermesTelegram(
+          [
+            '🧾 AUTOMATIC POSTMORTEM CREATED',
+            '',
+            'Affected: ' + recovered.affectedApps.join(', '),
+            'Started: ' + recovered.startedAt,
+            'Recovered: ' + snapshot.at,
+            'Status: service recovered'
+          ].join('\n')
+        ).catch(() => {})
+      }
+
       lastSnapshot = snapshot
       await appendJsonl(SNAPSHOT_FILE, snapshot)
       const sampleCount = (await readJsonl(SNAPSHOT_FILE, 6000)).length
