@@ -3,11 +3,16 @@ import os from 'node:os'
 import path from 'node:path'
 import { existsSync } from 'node:fs'
 import { appendFile, mkdir, readFile, stat, statfs, writeFile } from 'node:fs/promises'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 
 const DATA_DIR = process.env.CONTROL_V3_DATA_DIR || '/home/hermes/.hermes/infrastructure-os-v3'
 const SNAPSHOT_FILE = path.join(DATA_DIR, 'snapshots.jsonl')
 const BLACKBOX_FILE = path.join(DATA_DIR, 'blackbox.jsonl')
 const POSTMORTEM_FILE = path.join(DATA_DIR, 'postmortems.jsonl')
+const V2_DEPLOY_FILE = '/home/hermes/.hermes/control-plane-v2/deployments.jsonl'
+const RESOURCE_GUARD_SAFE = '/usr/local/bin/hermes-resource-guard-safe'
+const execFileAsync = promisify(execFile)
 const DOMAIN = process.env.CONTROL_DOMAIN || 'maulanaroyyantsubaisa.my.id'
 
 const SKILLS = [
@@ -114,28 +119,86 @@ async function resources() {
   }
 }
 
-function scoreFromSnapshot(snapshot, backupRaw = '') {
-  const appScore = snapshot.total ? Math.round((snapshot.online / snapshot.total) * 100) : 0
-  const resourceScore = Math.max(
+function parseBackupState(raw = '') {
+  const text = String(raw || '')
+  const ratio =
+    text.match(/backup\s+verification:\s*(\d+)\s*\/\s*(\d+)\s*ok/i) ||
+    text.match(/(\d+)\s*\/\s*(\d+)\s*(?:verified|ok)/i)
+  const failedLine = text.match(/(?:failed|failures?)\s*:\s*(\d+)/i)
+  const staleLine = text.match(/stale\s*:\s*(\d+)/i)
+  const failedCount = failedLine ? Number(failedLine[1]) : null
+  const staleCount = staleLine ? Number(staleLine[1]) : null
+  const corrupt = /\b(?:corrupt|invalid)\b/i.test(text)
+  const failure = corrupt || (failedCount !== null ? failedCount > 0 : /\bfailed\b/i.test(text))
+  const stale = staleCount !== null ? staleCount > 0 : /\bstale\b/i.test(text)
+  return {
+    verified: ratio ? Number(ratio[1]) : null,
+    total: ratio ? Number(ratio[2]) : null,
+    failedCount,
+    staleCount,
+    failure,
+    stale,
+    corrupt
+  }
+}
+
+function scoreFromSnapshot(snapshot, evidence = {}) {
+  const backup = parseBackupState(snapshot.hermes?.backup || '')
+  const availability = snapshot.total ? Math.round((snapshot.online / snapshot.total) * 100) : 0
+  const resource = Math.max(
     0,
-    100 - Math.max(0, snapshot.resources.memoryPercent - 65) * 2 - Math.max(0, snapshot.resources.diskPercent - 70) * 2
+    Math.round(
+      100 -
+      Math.max(0, snapshot.resources.memoryPercent - 70) * 2 -
+      Math.max(0, snapshot.resources.diskPercent - 75) * 2 -
+      Math.max(0, snapshot.resources.load1 - snapshot.resources.cpus * 1.5) * 4
+    )
   )
-  const backupPenalty = /\b(?:failed|corrupt|invalid)\b/i.test(backupRaw) && !/failed\s*:\s*0/i.test(backupRaw) ? 30 : 0
-  const backupScore = Math.max(0, 100 - backupPenalty)
-  const availability = appScore
-  const recovery = 96
-  const security = 94
-  const deployment = 97
-  const monitoring = 100
+  const backupScore = backup.failure ? 35 : backup.stale ? 75 : 100
+  const recovery = evidence.deepAcceptance?.status === 'pass' ? 100 : evidence.deepAcceptance?.status === 'fail' ? 40 : 70
+  const monitoring =
+    evidence.selfTest?.status === 'pass' && evidence.selfTest?.passed === evidence.selfTest?.expected
+      ? 100
+      : evidence.selfTest?.status === 'fail'
+        ? 50
+        : 75
+  const recentDeploys = Array.isArray(evidence.deployments) ? evidence.deployments.slice(-20) : []
+  const deployFailures = recentDeploys.filter((x) => /deploy-failed/i.test(x.type || '') || x.status === 'failed').length
+  const deployment = recentDeploys.length
+    ? Math.max(40, Math.round(100 - (deployFailures / recentDeploys.length) * 100))
+    : 85
+  const security =
+    evidence.securityWrappers === false
+      ? 45
+      : evidence.securityWrappers === true
+        ? 100
+        : 85
   const total = Math.round(
-    availability * 0.28 +
-    backupScore * 0.18 +
-    recovery * 0.16 +
-    security * 0.14 +
+    availability * 0.24 +
+    backupScore * 0.17 +
+    recovery * 0.15 +
+    security * 0.13 +
     deployment * 0.12 +
-    monitoring * 0.12
+    monitoring * 0.12 +
+    resource * 0.07
   )
-  return { total, availability, backup: backupScore, recovery, security, deployment, monitoring, resource: Math.round(resourceScore) }
+  return {
+    total,
+    availability,
+    backup: backupScore,
+    recovery,
+    security,
+    deployment,
+    monitoring,
+    resource,
+    evidence: {
+      backup,
+      recentDeployments: recentDeploys.length,
+      deployFailures,
+      deepAcceptance: evidence.deepAcceptance?.status || 'unknown',
+      recurringSelfTest: evidence.selfTest?.status || 'unknown'
+    }
+  }
 }
 
 function linearTrend(rows, selector) {
