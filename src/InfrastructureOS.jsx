@@ -88,6 +88,8 @@ export default function InfrastructureOS({ apps = [] }) {
   const [vault, setVault] = useState(null)
   const [postmortems, setPostmortems] = useState([])
   const [commitRisk, setCommitRisk] = useState(null)
+  const [rootCause, setRootCause] = useState(null)
+  const [deploymentReplay, setDeploymentReplay] = useState(null)
   const [command, setCommand] = useState('cek kondisi server')
   const [commandPlan, setCommandPlan] = useState(null)
   const [commandOutput, setCommandOutput] = useState('')
@@ -100,7 +102,7 @@ export default function InfrastructureOS({ apps = [] }) {
     try {
       const [
         o, tm, cap, pred, cmd, war, skillData, can, drData, powerData,
-        fail, vaultData, posts, risk
+        fail, vaultData, posts, risk, rca, replay
       ] = await Promise.all([
         api('/api/v3/overview'),
         api('/api/v3/time-machine?limit=120'),
@@ -115,7 +117,9 @@ export default function InfrastructureOS({ apps = [] }) {
         api('/api/v3/failover'),
         api('/api/v3/vault'),
         api('/api/v3/postmortems?limit=10'),
-        api('/api/v3/commit-risk?repo=royyan-home-server-control').catch(() => null)
+        api('/api/v3/commit-risk?repo=royyan-home-server-control').catch(() => null),
+        api('/api/v3/root-cause'),
+        api('/api/v3/deployment-replay')
       ])
       setOverview(o)
       setTimeMachine(tm)
@@ -131,6 +135,8 @@ export default function InfrastructureOS({ apps = [] }) {
       setVault(vaultData)
       setPostmortems(posts.reports || [])
       setCommitRisk(risk)
+      setRootCause(rca)
+      setDeploymentReplay(replay)
       setMessage('')
     } catch (error) {
       setMessage(error.message)
@@ -342,11 +348,16 @@ export default function InfrastructureOS({ apps = [] }) {
             </div>
           </Feature>
 
-          <Feature n={5} title="AI Root Cause Correlation" icon={BrainCircuit}>
+          <Feature n={5} title="AI Root Cause Correlation" icon={BrainCircuit} state={rootCause?.affectedApps?.length ? 'warn' : 'active'}>
             <Mono>{
-              commander?.active
-                ? 'Correlating current incident state with fleet health, resources, deployment state and black-box history.'
-                : 'No active fault. Correlation engine is monitoring health, latency, resources and deployment evidence.'
+              rootCause?.findings?.length
+                ? rootCause.findings.map((item) =>
+                    item.app + ' · ' + item.hypothesis +
+                    ' · confidence ' + Math.round((item.confidence || 0) * 100) + '%' +
+                    ' · HTTP ' + item.latestHttp +
+                    ' · ' + item.latestLatencyMs + 'ms'
+                  ).join('\n')
+                : (rootCause?.evidence || []).join('\n') || 'RCA engine is monitoring live telemetry.'
             }</Mono>
           </Feature>
 
@@ -398,12 +409,22 @@ export default function InfrastructureOS({ apps = [] }) {
             <Mono>{(commitRisk?.reasons || []).join('\n') || commitRisk?.message || 'Commit data unavailable.'}</Mono>
           </Feature>
 
-          <Feature n={19} title="Visual Deployment Replay" icon={TimerReset} wide>
+          <Feature n={19} title="Visual Deployment Replay" icon={TimerReset} wide state={deploymentReplay?.timeline?.length ? 'active' : 'ready'}>
             <div className="ios-replay">
-              {['GitHub push','Hermes webhook','Resource Guard','Backup check','Build','Restart/route','Health','Production'].map((x, i) => (
-                <div key={x}><span>{i + 1}</span><strong>{x}</strong></div>
+              {(deploymentReplay?.timeline || []).slice(-12).map((item, i) => (
+                <div key={(item.at || '') + ':' + i}>
+                  <span>{i + 1}</span>
+                  <strong>{item.event}</strong>
+                  <small>{item.at ? new Date(item.at).toLocaleTimeString() : '—'}</small>
+                </div>
               ))}
+              {!deploymentReplay?.timeline?.length && (
+                <div><span>—</span><strong>No persisted deployment events yet</strong></div>
+              )}
             </div>
+            <p className="ios-muted">
+              Source: {deploymentReplay?.source || 'persistent deployment history'} · App: {deploymentReplay?.app || '—'}
+            </p>
           </Feature>
         </div>
       )}
