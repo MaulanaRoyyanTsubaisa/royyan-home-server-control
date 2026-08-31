@@ -1,0 +1,600 @@
+import { useEffect, useMemo, useState } from 'react'
+import {
+  Activity,
+  AlertTriangle,
+  AppWindow,
+  Archive,
+  Bot,
+  Boxes,
+  CheckCircle2,
+  ChevronRight,
+  CircleDot,
+  CloudCog,
+  Code2,
+  Cpu,
+  DatabaseBackup,
+  Github,
+  HardDrive,
+  HeartPulse,
+  LayoutDashboard,
+  MemoryStick,
+  MessageCircle,
+  Play,
+  RefreshCw,
+  Rocket,
+  RotateCcw,
+  Server,
+  ShieldCheck,
+  Terminal,
+  TimerReset
+} from 'lucide-react'
+
+const navItems = [
+  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'apps', label: 'Apps', icon: AppWindow },
+  { id: 'deployments', label: 'Deployments', icon: Rocket },
+  { id: 'backups', label: 'Backups', icon: DatabaseBackup },
+  { id: 'incidents', label: 'Incidents', icon: AlertTriangle },
+  { id: 'github', label: 'GitHub', icon: Github },
+  { id: 'telegram', label: 'Telegram', icon: MessageCircle },
+  { id: 'system', label: 'System', icon: Server }
+]
+
+async function api(path, options) {
+  const response = await fetch(path, {
+    headers: { 'Content-Type': 'application/json', ...(options?.headers || {}) },
+    ...options
+  })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(payload.error || 'Request failed')
+  return payload
+}
+
+function formatBytes(value = 0) {
+  if (!value) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let number = value
+  let index = 0
+  while (number >= 1024 && index < units.length - 1) {
+    number /= 1024
+    index += 1
+  }
+  return number.toFixed(index > 2 ? 2 : 1) + ' ' + units[index]
+}
+
+function formatUptime(seconds = 0) {
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  if (days) return days + 'd ' + hours + 'h'
+  if (hours) return hours + 'h ' + minutes + 'm'
+  return minutes + 'm'
+}
+
+function timeAgo(value) {
+  if (!value) return '—'
+  const ms = Date.now() - new Date(value).getTime()
+  const minutes = Math.max(0, Math.round(ms / 60000))
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return minutes + 'm ago'
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return hours + 'h ago'
+  return Math.round(hours / 24) + 'd ago'
+}
+
+function Panel({ title, eyebrow, action, children, className = '' }) {
+  return (
+    <section className={'panel ' + className}>
+      <div className="panel-head">
+        <div>
+          {eyebrow && <span className="eyebrow">{eyebrow}</span>}
+          <h2>{title}</h2>
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function Metric({ icon: Icon, label, value, sub, percent }) {
+  const safe = Math.max(0, Math.min(100, Number(percent || 0)))
+  return (
+    <article className="metric-card">
+      <div className="metric-top">
+        <span className="icon-box"><Icon size={18} /></span>
+        <span className="metric-label">{label}</span>
+      </div>
+      <div className="metric-value">{value}</div>
+      <div className="metric-sub">{sub}</div>
+      <div className="meter"><span style={{ width: safe + '%' }} /></div>
+    </article>
+  )
+}
+
+function StatusPill({ online = true, children }) {
+  return (
+    <span className={'status-pill ' + (online ? 'ok' : 'warn')}>
+      <span className="status-dot" />
+      {children}
+    </span>
+  )
+}
+
+function AppCard({ name, onAction, busy }) {
+  return (
+    <article className="app-card">
+      <div className="app-card-main">
+        <span className="app-symbol"><Boxes size={18} /></span>
+        <div>
+          <strong>{name}</strong>
+          <div className="app-meta">Managed by Hermes safe ops</div>
+        </div>
+      </div>
+      <div className="app-card-actions">
+        <button className="ghost-btn" disabled={busy} onClick={() => onAction('logs', name)}>
+          <Terminal size={15} /> Logs
+        </button>
+        <button className="ghost-btn" disabled={busy} onClick={() => onAction('restart', name)}>
+          <RotateCcw size={15} /> Restart
+        </button>
+        <button className="primary-btn compact" disabled={busy} onClick={() => onAction('deploy', name)}>
+          <Rocket size={15} /> Deploy
+        </button>
+      </div>
+    </article>
+  )
+}
+
+export default function App() {
+  const [active, setActive] = useState('overview')
+  const [overview, setOverview] = useState(null)
+  const [config, setConfig] = useState(null)
+  const [online, setOnline] = useState(false)
+  const [busy, setBusy] = useState('')
+  const [consoleOutput, setConsoleOutput] = useState('Ready. No raw shell is exposed to the browser.')
+  const [activity, setActivity] = useState([])
+  const [github, setGithub] = useState(null)
+  const [telegramMessages, setTelegramMessages] = useState([])
+  const [telegramText, setTelegramText] = useState('')
+  const [error, setError] = useState('')
+
+  const refreshCore = async () => {
+    try {
+      const [health, metrics, settings, recent] = await Promise.all([
+        api('/api/health'),
+        api('/api/overview'),
+        api('/api/config'),
+        api('/api/activity')
+      ])
+      setOnline(Boolean(health.ok))
+      setOverview(metrics)
+      setConfig(settings)
+      setActivity(recent.activity || [])
+      setError('')
+    } catch (err) {
+      setOnline(false)
+      setError(err.message)
+    }
+  }
+
+  useEffect(() => {
+    refreshCore()
+    const timer = setInterval(refreshCore, 5000)
+    return () => clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    if (active !== 'github') return
+    api('/api/github').then(setGithub).catch((err) => setGithub({ ok: false, error: err.message }))
+  }, [active])
+
+  useEffect(() => {
+    if (active !== 'telegram') return
+    const load = () => api('/api/telegram/messages')
+      .then((data) => setTelegramMessages(data.messages || []))
+      .catch(() => {})
+    load()
+    const timer = setInterval(load, 5000)
+    return () => clearInterval(timer)
+  }, [active])
+
+  const runAction = async (command, appName) => {
+    const key = command + ':' + (appName || '')
+    setBusy(key)
+    setConsoleOutput('Running ' + command + (appName ? ' on ' + appName : '') + '…')
+    try {
+      const result = await api('/api/actions', {
+        method: 'POST',
+        body: JSON.stringify({ command, app: appName })
+      })
+      setConsoleOutput(result.stdout || result.stderr || 'Operation completed successfully.')
+      await refreshCore()
+    } catch (err) {
+      setConsoleOutput('ERROR: ' + err.message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const sendTelegram = async (event) => {
+    event.preventDefault()
+    if (!telegramText.trim()) return
+    setBusy('telegram')
+    try {
+      await api('/api/telegram/send', {
+        method: 'POST',
+        body: JSON.stringify({ text: telegramText })
+      })
+      setTelegramText('')
+      setConsoleOutput('Telegram message sent.')
+    } catch (err) {
+      setConsoleOutput('ERROR: ' + err.message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const serverName = overview?.system?.hostname || 'home-server'
+  const currentTitle = navItems.find((item) => item.id === active)?.label || 'Overview'
+
+  const loadText = useMemo(() => {
+    const load = overview?.system?.loadAverage?.[0]
+    return Number.isFinite(load) ? load.toFixed(2) : '—'
+  }, [overview])
+
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <div className="brand-mark"><CloudCog size={24} /></div>
+          <div>
+            <strong>Royyan</strong>
+            <span>Server Control</span>
+          </div>
+        </div>
+
+        <nav className="nav-list">
+          {navItems.map((item) => {
+            const Icon = item.icon
+            return (
+              <button
+                key={item.id}
+                className={'nav-item ' + (active === item.id ? 'active' : '')}
+                onClick={() => setActive(item.id)}
+              >
+                <Icon size={18} />
+                <span>{item.label}</span>
+              </button>
+            )
+          })}
+        </nav>
+
+        <div className="sidebar-foot">
+          <StatusPill online={online}>{online ? 'Server online' : 'Server offline'}</StatusPill>
+          <span className="tiny">{serverName}</span>
+        </div>
+      </aside>
+
+      <main className="main">
+        <header className="topbar">
+          <div>
+            <span className="eyebrow">HOME INFRASTRUCTURE</span>
+            <h1>{currentTitle}</h1>
+          </div>
+          <div className="top-actions">
+            <StatusPill online={online}>{online ? 'Connected' : 'Disconnected'}</StatusPill>
+            <button className="icon-btn" onClick={refreshCore} aria-label="Refresh">
+              <RefreshCw size={17} />
+            </button>
+          </div>
+        </header>
+
+        {error && (
+          <div className="alert">
+            <AlertTriangle size={17} />
+            Dashboard API unavailable: {error}
+          </div>
+        )}
+
+        {active === 'overview' && (
+          <>
+            <section className="hero">
+              <div>
+                <span className="eyebrow">CONTROL PLANE</span>
+                <h2>Everything important, without SSH gymnastics.</h2>
+                <p>Monitor the machine, operate known apps, trigger safe actions, and keep GitHub + Telegram in one place.</p>
+              </div>
+              <div className="hero-actions">
+                <button className="primary-btn" disabled={busy} onClick={() => runAction('health')}>
+                  <HeartPulse size={17} /> Health check
+                </button>
+                <button className="secondary-btn" disabled={busy} onClick={() => runAction('backup')}>
+                  <Archive size={17} /> Run backup
+                </button>
+              </div>
+            </section>
+
+            <section className="metrics-grid">
+              <Metric
+                icon={Cpu}
+                label="CPU"
+                value={(overview?.cpu?.percent ?? 0) + '%'}
+                sub={(overview?.cpu?.cores ?? 0) + ' logical cores'}
+                percent={overview?.cpu?.percent}
+              />
+              <Metric
+                icon={MemoryStick}
+                label="Memory"
+                value={(overview?.memory?.percent ?? 0) + '%'}
+                sub={formatBytes(overview?.memory?.used) + ' / ' + formatBytes(overview?.memory?.total)}
+                percent={overview?.memory?.percent}
+              />
+              <Metric
+                icon={HardDrive}
+                label="Disk"
+                value={(overview?.disk?.percent ?? 0) + '%'}
+                sub={formatBytes(overview?.disk?.used) + ' / ' + formatBytes(overview?.disk?.total)}
+                percent={overview?.disk?.percent}
+              />
+              <Metric
+                icon={Activity}
+                label="Load"
+                value={loadText}
+                sub={'Uptime ' + formatUptime(overview?.system?.uptimeSeconds)}
+                percent={Math.min(100, Number(loadText || 0) * 10)}
+              />
+            </section>
+
+            <div className="two-col">
+              <Panel
+                title="Applications"
+                eyebrow={(config?.apps?.length || 0) + ' configured'}
+                action={<button className="text-btn" onClick={() => setActive('apps')}>Manage <ChevronRight size={15} /></button>}
+              >
+                <div className="mini-apps">
+                  {(config?.apps || []).slice(0, 5).map((name) => (
+                    <div className="mini-app-row" key={name}>
+                      <span className="app-symbol small"><Boxes size={14} /></span>
+                      <div>
+                        <strong>{name}</strong>
+                        <span>Safe ops enabled</span>
+                      </div>
+                      <CheckCircle2 size={17} className="ok-icon" />
+                    </div>
+                  ))}
+                </div>
+              </Panel>
+
+              <Panel title="Quick operations" eyebrow="ALLOWLIST ONLY">
+                <div className="quick-grid">
+                  <button onClick={() => runAction('status')} disabled={busy}>
+                    <CircleDot size={18} />
+                    <span>Status</span>
+                  </button>
+                  <button onClick={() => runAction('health')} disabled={busy}>
+                    <ShieldCheck size={18} />
+                    <span>Health</span>
+                  </button>
+                  <button onClick={() => runAction('timers')} disabled={busy}>
+                    <TimerReset size={18} />
+                    <span>Timers</span>
+                  </button>
+                  <button onClick={() => runAction('backup')} disabled={busy}>
+                    <DatabaseBackup size={18} />
+                    <span>Backup</span>
+                  </button>
+                </div>
+              </Panel>
+            </div>
+
+            <div className="two-col">
+              <Panel title="Ops console" eyebrow="HERMES SAFE OUTPUT">
+                <pre className="console">{consoleOutput}</pre>
+              </Panel>
+              <Panel title="Recent activity" eyebrow="THIS SESSION">
+                <div className="activity-list">
+                  {activity.length ? activity.slice(0, 7).map((item) => (
+                    <div className="activity-row" key={item.id}>
+                      <span className="activity-dot" />
+                      <div>
+                        <strong>{item.message}</strong>
+                        <span>{timeAgo(item.at)}</span>
+                      </div>
+                    </div>
+                  )) : <div className="empty">No actions yet.</div>}
+                </div>
+              </Panel>
+            </div>
+          </>
+        )}
+
+        {active === 'apps' && (
+          <Panel title="Managed applications" eyebrow="SAFE OPERATIONS">
+            <div className="apps-list">
+              {(config?.apps || []).map((name) => (
+                <AppCard key={name} name={name} onAction={runAction} busy={Boolean(busy)} />
+              ))}
+            </div>
+            <pre className="console spaced">{consoleOutput}</pre>
+          </Panel>
+        )}
+
+        {active === 'deployments' && (
+          <div className="two-col">
+            <Panel title="Deployment control" eyebrow="MAIN BRANCH">
+              <p className="muted">Deploy actions are restricted to configured applications and go through Hermes safe ops.</p>
+              <div className="apps-list compact-list">
+                {(config?.apps || []).map((name) => (
+                  <button className="row-action" key={name} onClick={() => runAction('deploy', name)} disabled={busy}>
+                    <span><Rocket size={16} /> {name}</span>
+                    <Play size={15} />
+                  </button>
+                ))}
+              </div>
+            </Panel>
+            <Panel title="Deployment output" eyebrow="LIVE RESULT">
+              <pre className="console tall">{consoleOutput}</pre>
+            </Panel>
+          </div>
+        )}
+
+        {active === 'backups' && (
+          <div className="two-col">
+            <Panel title="Backup control" eyebrow="SERVER DATA">
+              <div className="feature-callout">
+                <DatabaseBackup size={28} />
+                <div>
+                  <strong>Manual safe backup</strong>
+                  <p>Triggers the existing server backup command. The web UI never receives raw sudo access.</p>
+                </div>
+              </div>
+              <button className="primary-btn full" onClick={() => runAction('backup')} disabled={busy}>
+                <DatabaseBackup size={17} /> Run backup now
+              </button>
+            </Panel>
+            <Panel title="Timers" eyebrow="AUTOMATION">
+              <button className="secondary-btn" onClick={() => runAction('timers')} disabled={busy}>
+                <TimerReset size={17} /> Inspect backup timers
+              </button>
+              <pre className="console spaced tall">{consoleOutput}</pre>
+            </Panel>
+          </div>
+        )}
+
+        {active === 'incidents' && (
+          <div className="two-col">
+            <Panel title="Incident signals" eyebrow="HEALTH">
+              <div className="feature-callout">
+                <ShieldCheck size={28} />
+                <div>
+                  <strong>{online ? 'No dashboard outage detected' : 'Dashboard API is unreachable'}</strong>
+                  <p>Use the safe health command for deeper host and application checks.</p>
+                </div>
+              </div>
+              <button className="primary-btn" onClick={() => runAction('health')} disabled={busy}>
+                <HeartPulse size={17} /> Run health check
+              </button>
+            </Panel>
+            <Panel title="Diagnostic output" eyebrow="READ ONLY">
+              <pre className="console tall">{consoleOutput}</pre>
+            </Panel>
+          </div>
+        )}
+
+        {active === 'github' && (
+          <div className="two-col wide-left">
+            <Panel title="GitHub connection" eyebrow="SOURCE CONTROL">
+              <div className="connection-card">
+                <Github size={30} />
+                <div>
+                  <strong>{config?.github?.owner || 'GitHub owner'}</strong>
+                  <span>Allowed branch: {config?.github?.branch || 'main'}</span>
+                </div>
+                <StatusPill online={github?.ok !== false}>{github?.ok === false ? 'API issue' : 'Connected'}</StatusPill>
+              </div>
+              {github?.error && <div className="alert small-alert">{github.error}</div>}
+              <div className="repo-list">
+                {(github?.repositories || []).map((repo) => (
+                  <a className="repo-row" key={repo.name} href={repo.url} target="_blank" rel="noreferrer">
+                    <Code2 size={16} />
+                    <div>
+                      <strong>{repo.name}</strong>
+                      <span>{repo.defaultBranch} · updated {timeAgo(repo.updatedAt)}</span>
+                    </div>
+                    <ChevronRight size={15} />
+                  </a>
+                ))}
+              </div>
+            </Panel>
+            <Panel title="GitHub policy" eyebrow="GUARDRAILS">
+              <ul className="policy-list">
+                <li><CheckCircle2 size={16} /> Owner allowlist stays server-side.</li>
+                <li><CheckCircle2 size={16} /> Production branch defaults to main.</li>
+                <li><CheckCircle2 size={16} /> No GitHub token is sent to the browser.</li>
+                <li><CheckCircle2 size={16} /> Deploy still passes through Hermes safe ops.</li>
+              </ul>
+            </Panel>
+          </div>
+        )}
+
+        {active === 'telegram' && (
+          <div className="two-col wide-left">
+            <Panel title="Telegram bridge" eyebrow="WEB ↔ TELEGRAM">
+              <div className="connection-card">
+                <Bot size={30} />
+                <div>
+                  <strong>Hermes Telegram</strong>
+                  <span>{config?.telegram?.configured ? 'Outbound messaging configured' : 'Add bot token + chat ID on the server'}</span>
+                </div>
+                <StatusPill online={config?.telegram?.configured}>
+                  {config?.telegram?.configured ? 'Ready' : 'Setup needed'}
+                </StatusPill>
+              </div>
+              <form className="telegram-form" onSubmit={sendTelegram}>
+                <textarea
+                  value={telegramText}
+                  onChange={(event) => setTelegramText(event.target.value)}
+                  placeholder="Send an operational note to Telegram…"
+                  maxLength={1000}
+                />
+                <button className="primary-btn" disabled={busy === 'telegram' || !telegramText.trim()}>
+                  <MessageCircle size={17} /> Send to Telegram
+                </button>
+              </form>
+            </Panel>
+            <Panel title="Incoming messages" eyebrow="WEBHOOK FEED">
+              <div className="message-list">
+                {telegramMessages.length ? telegramMessages.map((message) => (
+                  <div className="message-row" key={message.id}>
+                    <div className="avatar">{String(message.from || 'T').slice(0, 1).toUpperCase()}</div>
+                    <div>
+                      <strong>{message.from}</strong>
+                      <p>{message.text}</p>
+                      <span>{timeAgo(message.at)}</span>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="empty">No webhook messages received yet.</div>
+                )}
+              </div>
+            </Panel>
+          </div>
+        )}
+
+        {active === 'system' && (
+          <>
+            <section className="metrics-grid">
+              <Metric icon={Cpu} label="CPU" value={(overview?.cpu?.percent ?? 0) + '%'} sub={overview?.cpu?.model || '—'} percent={overview?.cpu?.percent} />
+              <Metric icon={MemoryStick} label="RAM" value={(overview?.memory?.percent ?? 0) + '%'} sub={formatBytes(overview?.memory?.total)} percent={overview?.memory?.percent} />
+              <Metric icon={HardDrive} label="Root disk" value={(overview?.disk?.percent ?? 0) + '%'} sub={formatBytes(overview?.disk?.total)} percent={overview?.disk?.percent} />
+              <Metric icon={Server} label="Uptime" value={formatUptime(overview?.system?.uptimeSeconds)} sub={overview?.system?.release || '—'} percent={25} />
+            </section>
+            <Panel title="Host information" eyebrow="LIVE FROM NODE.JS">
+              <div className="info-grid">
+                <div><span>Hostname</span><strong>{overview?.system?.hostname || '—'}</strong></div>
+                <div><span>Platform</span><strong>{overview?.system?.platform || '—'}</strong></div>
+                <div><span>Architecture</span><strong>{overview?.system?.arch || '—'}</strong></div>
+                <div><span>Node.js</span><strong>{overview?.system?.node || '—'}</strong></div>
+                <div><span>Load 1m</span><strong>{overview?.system?.loadAverage?.[0]?.toFixed?.(2) || '—'}</strong></div>
+                <div><span>Load 5m</span><strong>{overview?.system?.loadAverage?.[1]?.toFixed?.(2) || '—'}</strong></div>
+              </div>
+            </Panel>
+          </>
+        )}
+
+        <div className="mobile-nav">
+          {navItems.slice(0, 5).map((item) => {
+            const Icon = item.icon
+            return (
+              <button key={item.id} className={active === item.id ? 'active' : ''} onClick={() => setActive(item.id)}>
+                <Icon size={18} />
+                <span>{item.label}</span>
+              </button>
+            )
+          })}
+        </div>
+      </main>
+    </div>
+  )
+}
