@@ -25,7 +25,9 @@ function summary(data) {
     deepVersion: deep.version,
     deepChecks: Array.isArray(deep.checks) ? deep.checks : [],
     v3: data?.infrastructureV3 || {},
-    bridge: data?.gitOpsBridge || {}
+    v3Validation: data?.v3Validation || {},
+    bridge: data?.gitOpsBridge || {},
+    reconciler: data?.controlReconciler || {}
   }
 }
 
@@ -55,7 +57,10 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
       ' deepPassed=' + (last.deepPassed ?? '-') +
       ' deepFailed=' + (last.deepFailed ?? '-') +
       ' v3=' + (last.v3?.ready ? 'ready' : 'pending') +
-      ' bridge=' + (last.bridge?.status || 'missing')
+      ' v3Recurring=' + (last.v3Validation?.recurring?.status || 'missing') +
+      ' v3Acceptance=' + (last.v3Validation?.acceptance?.status || 'missing') +
+      ' bridge=' + (last.bridge?.status || 'missing') +
+      ' reconcile=' + (last.reconciler?.status || 'missing')
     )
 
     const checks = data?.selfTest?.checks
@@ -85,11 +90,28 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
       Number.isFinite(data?.infrastructureV3?.reliability) &&
       Number(data?.infrastructureV3?.total) > 0 &&
       Number(data?.infrastructureV3?.timeMachineSamples) >= 1 &&
+      data?.v3Validation?.recurring?.status === 'pass' &&
+      data?.v3Validation?.recurring?.passed === 20 &&
+      data?.v3Validation?.recurring?.failed === 0 &&
+      data?.v3Validation?.recurring?.expected === 20 &&
+      Array.isArray(data?.v3Validation?.recurring?.checks) &&
+      data.v3Validation.recurring.checks.length === 20 &&
+      data.v3Validation.recurring.checks.every((item) => item.status === 'pass') &&
+      data?.v3Validation?.acceptance?.status === 'pass' &&
+      data?.v3Validation?.acceptance?.passed === 5 &&
+      data?.v3Validation?.acceptance?.failed === 0 &&
+      data?.v3Validation?.acceptance?.expected === 5 &&
+      Array.isArray(data?.v3Validation?.acceptance?.checks) &&
+      data.v3Validation.acceptance.checks.length === 5 &&
+      data.v3Validation.acceptance.checks.every((item) => item.status === 'pass') &&
       data?.gitOpsBridge?.enabled === true &&
       data?.gitOpsBridge?.status === 'success' &&
-      Boolean(data?.gitOpsBridge?.lastId)
+      Boolean(data?.gitOpsBridge?.lastId) &&
+      data?.controlReconciler?.enabled === true &&
+      data?.controlReconciler?.status === 'in-sync' &&
+      data?.controlReconciler?.mismatch === false
     ) {
-      console.log('[production-smoke] PASS: 15/15 recurring + 5/5 deep + Infrastructure OS V3 + GitOps bridge are healthy.')
+      console.log('[production-smoke] PASS: V2 15/15 + deep 5/5 + V3 20/20 + V3 real 5/5 + GitOps + reconciler are healthy.')
       process.exit(0)
     }
   } catch (error) {
@@ -100,7 +122,7 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
   if (attempt < attempts) await sleep(delayMs)
 }
 
-console.error('[production-smoke] FAIL: production did not reach 15/15 + deep 5/5 + V3 ready + GitOps bridge success.')
+console.error('[production-smoke] FAIL: production did not reach V2 15/15 + deep 5/5 + V3 20/20 + V3 real 5/5 + GitOps + reconciler in-sync.')
 if (last) console.error(JSON.stringify(last, null, 2))
 if (lastError) console.error('Last request error:', lastError)
 process.exit(1)

@@ -21,9 +21,18 @@ import {
 } from './deepProductionAcceptance.js'
 import { getInfrastructureV3PublicState, registerInfrastructureV3 } from './infrastructureV3.js'
 import {
+  getV3SelfTestDetailedState,
+  getV3SelfTestPublicState,
+  scheduleV3Tests
+} from './infrastructureV3SelfTest.js'
+import {
   getGitOpsBridgePublicState,
   registerGitOpsBridge
 } from './gitOpsBridge.js'
+import {
+  getControlReconcilerState,
+  scheduleControlReconciler
+} from './controlReconciler.js'
 
 const execFileAsync = promisify(execFile)
 const app = express()
@@ -328,6 +337,8 @@ app.get('/api/health', (_req, res) => {
     deepAcceptance: getPublicDeepAcceptanceState(),
     gitOpsBridge: getGitOpsBridgePublicState(),
     infrastructureV3: getInfrastructureV3PublicState(),
+    v3Validation: getV3SelfTestPublicState(),
+    controlReconciler: getControlReconcilerState(),
     at: new Date().toISOString()
   })
 })
@@ -411,6 +422,10 @@ app.get('/api/selftest', (_req, res) => {
 
 app.get('/api/deep-acceptance', (_req, res) => {
   res.json({ ok: true, ...getDetailedDeepAcceptanceState() })
+})
+
+app.get('/api/v3-validation', (_req, res) => {
+  res.json({ ok: true, ...getV3SelfTestDetailedState() })
 })
 
 registerControlPlaneV2({
@@ -621,6 +636,11 @@ app.listen(PORT, HOST, () => {
     password: CONTROL_ADMIN_PASSWORD
   })
   scheduleDeepProductionAcceptance({
+    port: PORT,
+    password: CONTROL_ADMIN_PASSWORD
+  })
+  scheduleControlReconciler()
+  scheduleV3Tests({
     port: PORT,
     password: CONTROL_ADMIN_PASSWORD
   })
