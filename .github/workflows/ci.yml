@@ -41,6 +41,47 @@ jobs:
       - name: Run server unit tests
         run: node --test server/controlPlaneV2.test.js server/infrastructureV3.test.js
 
+      - name: Runtime startup smoke under deploy health window
+        run: |
+          set -Eeuo pipefail
+          export PORT=18787
+          export HOST=127.0.0.1
+          export CONTROL_ADMIN_PASSWORD=ci-test-only
+          export CONTROL_SESSION_SECRET=ci-test-session-secret-32-bytes
+          export HERMES_APPS=sajiin
+          export CONTROL_DATA_DIR=/tmp/control-plane-v2
+          export CONTROL_V3_DATA_DIR=/tmp/infrastructure-os-v3
+
+          START_MS="$(date +%s%3N)"
+          node server/index.js >/tmp/control-startup.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true' EXIT
+
+          READY=0
+          for _ in $(seq 1 20); do
+            if curl -fsS --max-time 1 http://127.0.0.1:18787/api/health >/tmp/control-health.json; then
+              READY=1
+              break
+            fi
+            sleep 0.1
+          done
+
+          if [[ "$READY" -ne 1 ]]; then
+            cat /tmp/control-startup.log
+            echo "Control service did not become healthy within ~2s" >&2
+            exit 1
+          fi
+
+          END_MS="$(date +%s%3N)"
+          ELAPSED="$((END_MS - START_MS))"
+          echo "Startup health ready in ${ELAPSED}ms"
+          test "$ELAPSED" -lt 2000
+
+          sleep 4
+          kill -0 "$PID"
+          curl -fsS --max-time 2 http://127.0.0.1:18787/api/health >/tmp/control-health-stable.json
+          node -e "const d=require('/tmp/control-health-stable.json'); if(d.service!=='royyan-home-server-control') process.exit(1)"
+
       - name: Check installer and helper syntax
         run: |
           bash -n scripts/install.sh
