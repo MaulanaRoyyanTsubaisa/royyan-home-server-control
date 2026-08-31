@@ -419,9 +419,77 @@ export function registerInfrastructureV3({
     res.json({ ok: true, risks, prediction: risks.length ? 'attention-needed' : 'low-observed-risk', samples: recent.length })
   })
 
+  app.get('/api/v3/root-cause', async (_req, res) => {
+    try {
+      const snap = await current()
+      const snapshots = await readJsonl(SNAPSHOT_FILE, 96)
+      const deployments = await readJsonl(V2_DEPLOY_FILE, 100)
+      const affected = snap.apps.filter((x) => !x.reachable || (x.status >= 500 && x.status !== 503))
+      const findings = []
+      const evidence = []
+
+      for (const app of affected) {
+        const history = snapshots
+          .slice(-24)
+          .map((row) => row.apps?.find((x) => x.app === app.app))
+          .filter(Boolean)
+        const recentLatencies = history.map((x) => x.latencyMs).filter(Number.isFinite)
+        const avgLatency = recentLatencies.length
+          ? Math.round(recentLatencies.reduce((a, b) => a + b, 0) / recentLatencies.length)
+          : null
+        const deploy = deployments
+          .slice()
+          .reverse()
+          .find((item) => item.app === app.app)
+
+        findings.push({
+          app: app.app,
+          hypothesis:
+            deploy && Date.now() - new Date(deploy.at).getTime() < 60 * 60 * 1000
+              ? 'recent-deployment-correlation'
+              : avgLatency && avgLatency > 2500
+                ? 'latency-degradation'
+                : 'availability-failure',
+          confidence:
+            deploy && Date.now() - new Date(deploy.at).getTime() < 30 * 60 * 1000
+              ? 0.82
+              : avgLatency && avgLatency > 2500
+                ? 0.68
+                : 0.55,
+          latestHttp: app.status,
+          latestLatencyMs: app.latencyMs,
+          historicalAvgLatencyMs: avgLatency,
+          recentDeploymentAt: deploy?.at || null,
+          recentDeploymentType: deploy?.type || null
+        })
+      }
+
+      if (snap.resources.memoryPercent >= 85) {
+        evidence.push('Host RAM pressure is high.')
+      }
+      if (snap.resources.diskPercent >= 90) {
+        evidence.push('Host disk pressure is high.')
+      }
+      if (!affected.length) {
+        evidence.push('No active availability fault is visible. RCA engine remains armed.')
+      }
+
+      res.json({
+        ok: true,
+        affectedApps: affected.map((x) => x.app),
+        findings,
+        evidence,
+        snapshotAt: snap.at,
+        mode: 'telemetry-correlation'
+      })
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message })
+    }
+  })
+
   app.get('/api/v3/incident-commander', async (_req, res) => {
     const snap = await current()
-    const failed = snap.apps.filter((x) => !x.reachable || x.status >= 500)
+    const failed = snap.apps.filter((x) => !x.reachable || (x.status >= 500 && x.status !== 503))
     const incidentText = snap.hermes.incidents
     const active = failed.length > 0 || /incident.*active|detected|unhealthy/i.test(incidentText)
     const plan = []
@@ -446,7 +514,7 @@ export function registerInfrastructureV3({
     const snap = await current()
     const title = safeText(req.body?.title || 'Infrastructure incident', 120)
     const commander = {
-      affected: snap.apps.filter((x) => !x.reachable || x.status >= 500).map((x) => x.app),
+      affected: snap.apps.filter((x) => !x.reachable || (x.status >= 500 && x.status !== 503)).map((x) => x.app),
       resources: snap.resources
     }
     const report = {
@@ -496,10 +564,34 @@ export function registerInfrastructureV3({
     if (mode === 'safe-restart' && req.body?.confirm === 'CHAOS_SAFE_RESTART') {
       try {
         const before = await publicProbe(target)
+        if (!before.reachable || before.status === 503) {
+          return res.status(409).json({ ok: false, error: 'Target must be healthy and outside maintenance before safe restart' })
+        }
+        const startedAt = Date.now()
         const result = await runSafeOps('restart', target)
-        await sleep(4000)
-        const after = await publicProbe(target)
-        return res.json({ ok: true, mode, app: target, before, after, output: safeText(result.stdout || result.stderr, 1400) })
+        let after = await publicProbe(target)
+        for (let attempt = 0; attempt < 18; attempt += 1) {
+          if (after.reachable && after.status !== 503) break
+          await sleep(3000)
+          after = await publicProbe(target)
+        }
+        if (!after.reachable || after.status === 503) {
+          return res.status(500).json({
+            ok: false,
+            error: 'App did not recover after safe restart within the acceptance window',
+            before,
+            after
+          })
+        }
+        return res.json({
+          ok: true,
+          mode,
+          app: target,
+          before,
+          after,
+          recoveryMs: Date.now() - startedAt,
+          output: safeText(result.stdout || result.stderr, 1400)
+        })
       } catch (error) {
         return res.status(500).json({ ok: false, error: error.message })
       }
@@ -590,7 +682,7 @@ export function registerInfrastructureV3({
 
   app.get('/api/v3/war-room', async (_req, res) => {
     const snap = await current()
-    const affected = snap.apps.filter((x) => !x.reachable || x.status >= 500)
+    const affected = snap.apps.filter((x) => !x.reachable || (x.status >= 500 && x.status !== 503))
     const active = affected.length > 0 || /incident.*active|detected/i.test(snap.hermes.incidents)
     res.json({
       ok: true,
@@ -599,6 +691,29 @@ export function registerInfrastructureV3({
       affectedApps: affected.map((x) => x.app),
       timeline: (await readJsonl(BLACKBOX_FILE, 30)).slice(-12),
       snapshotAt: snap.at
+    })
+  })
+
+  app.get('/api/v3/deployment-replay', async (req, res) => {
+    const target = String(req.query.app || '').trim()
+    const rows = await readJsonl(V2_DEPLOY_FILE, 300)
+    const filtered = target ? rows.filter((x) => x.app === target) : rows
+    const latestApp = target || filtered.slice().reverse().find((x) => x.app)?.app || null
+    const related = latestApp ? filtered.filter((x) => x.app === latestApp).slice(-30) : filtered.slice(-30)
+    const timeline = related.map((item) => ({
+      at: item.at || null,
+      app: item.app || latestApp,
+      event: item.type || item.status || 'deployment-event',
+      status:
+        /fail/i.test(item.type || item.status || '') ? 'failed' :
+        /finish|success|queued/i.test(item.type || item.status || '') ? 'success' :
+        'info'
+    }))
+    res.json({
+      ok: true,
+      app: latestApp,
+      timeline,
+      source: 'persistent-control-plane-deployment-history'
     })
   })
 
@@ -684,7 +799,18 @@ export function registerInfrastructureV3({
     try {
       let output
       if (skill.id === 'fleet-health') output = await current()
-      else if (skill.id === 'resource-guard') output = await runSafeOps('status')
+      else if (skill.id === 'resource-guard') {
+        if (!existsSync(RESOURCE_GUARD_SAFE)) throw new Error('Resource Guard safe helper is not installed')
+        const result = await execFileAsync(RESOURCE_GUARD_SAFE, [], {
+          timeout: 20000,
+          maxBuffer: 512 * 1024,
+          env: {
+            ...process.env,
+            PATH: process.env.PATH || '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+          }
+        })
+        output = { stdout: safeText(result.stdout || result.stderr || '', 4000) }
+      }
       else if (skill.id === 'backup-status') output = await runDashboardView('backup')
       else if (skill.id === 'deploy-history') output = await runDashboardView('deployments')
       else if (skill.id === 'incident-triage') output = { snapshot: await current(), incidents: await runDashboardView('incidents') }
