@@ -32,6 +32,7 @@ jobs:
           node --check server/index.js
           node --check server/controlPlaneV2.js
           node --check server/productionSelfTest.js
+          node --check server/deepProductionAcceptance.js
 
       - name: Run server unit tests
         run: node --test server/controlPlaneV2.test.js
