@@ -33,9 +33,11 @@ jobs:
           node --check server/controlPlaneV2.js
           node --check server/productionSelfTest.js
           node --check server/deepProductionAcceptance.js
+          node --check server/infrastructureV3.js
+          node --check server/gitOpsBridge.js
 
       - name: Run server unit tests
-        run: node --test server/controlPlaneV2.test.js
+        run: node --test server/controlPlaneV2.test.js server/infrastructureV3.test.js
 
       - name: Check installer and helper syntax
         run: |
