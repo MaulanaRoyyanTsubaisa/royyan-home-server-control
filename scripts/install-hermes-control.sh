@@ -421,9 +421,17 @@ deploy_once() {
     npm install &&
     npm run build &&
     systemctl restart "$SERVICE" &&
-    sleep 2 &&
-    health_body="$(curl -fsS --max-time 10 "http://127.0.0.1:$PORT/api/health")" &&
-    [[ "$health_body" == *'"service":"royyan-home-server-control"'* ]]
+    health_ok=0 &&
+    for attempt in $(seq 1 18); do
+      health_body="$(curl -fsS --max-time 5 "http://127.0.0.1:$PORT/api/health" 2>/dev/null || true)"
+      if [[ "$health_body" == *'"service":"royyan-home-server-control"'* ]] &&
+         [[ "$health_body" == *'"phase":"ready"'* ]]; then
+        health_ok=1
+        break
+      fi
+      sleep 2
+    done &&
+    [[ "$health_ok" -eq 1 ]]
   )
   rc=$?
   set -e
