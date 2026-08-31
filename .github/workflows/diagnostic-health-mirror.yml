@@ -1,0 +1,42 @@
+name: Diagnostic Health Mirror
+
+on:
+  push:
+    branches: [diagnostics/public-health-mirror]
+    paths-ignore:
+      - 'telemetry/**'
+
+permissions:
+  contents: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: diagnostics/public-health-mirror
+          fetch-depth: 0
+
+      - name: Fetch redacted production health
+        run: |
+          mkdir -p telemetry
+          for i in $(seq 1 12); do
+            if curl -fsS --max-time 15 \
+              https://control.maulanaroyyantsubaisa.my.id/api/health \
+              -o telemetry/production-health.json; then
+              break
+            fi
+            sleep 5
+          done
+          test -s telemetry/production-health.json
+          python3 -m json.tool telemetry/production-health.json >/dev/null
+
+      - name: Commit mirror
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add telemetry/production-health.json
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: mirror production health"
+          git push origin HEAD:diagnostics/public-health-mirror
