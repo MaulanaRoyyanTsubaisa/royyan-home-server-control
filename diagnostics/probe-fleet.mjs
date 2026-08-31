@@ -6,8 +6,13 @@ const apps = [
 ]
 
 const results = []
-for (const app of apps) {
-  const url = 'https://' + app + '.maulanaroyyantsubaisa.my.id/'
+const probes = [
+  ...apps.map((app) => ({ app, url: 'https://' + app + '.maulanaroyyantsubaisa.my.id/' })),
+  { app: 'portfolio-main-domain', url: 'https://maulana-royyan-tsubaisa.my.id/' }
+]
+for (const probe of probes) {
+  const app = probe.app
+  const url = probe.url
   const started = Date.now()
   try {
     const response = await fetch(url, {
