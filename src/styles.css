@@ -587,3 +587,126 @@ a { color: inherit; text-decoration: none; }
   .quick-grid { grid-template-columns: 1fr 1fr; }
   .info-grid { grid-template-columns: 1fr; }
 }
+
+
+.login-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(54, 119, 255, .14), transparent 26rem),
+    #06090f;
+}
+
+.login-card {
+  width: min(100%, 430px);
+  border: 1px solid #1d2735;
+  border-radius: 20px;
+  padding: 28px;
+  background: rgba(10, 15, 23, .94);
+  box-shadow: 0 24px 80px rgba(0,0,0,.38);
+}
+
+.login-card h1 {
+  margin: 9px 0 8px;
+  font-size: 32px;
+  letter-spacing: -.045em;
+}
+
+.login-card > p {
+  margin: 0 0 22px;
+  color: #7d899d;
+  line-height: 1.65;
+  font-size: 12px;
+}
+
+.login-mark {
+  margin-bottom: 22px;
+  width: 46px;
+  height: 46px;
+}
+
+.login-form {
+  display: grid;
+  gap: 14px;
+}
+
+.login-form label > span {
+  display: block;
+  margin-bottom: 7px;
+  color: #8a96a9;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.password-field {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #202c3d;
+  background: #070b11;
+  border-radius: 11px;
+  padding: 0 12px;
+  color: #6f83aa;
+}
+
+.password-field:focus-within {
+  border-color: #476898;
+  box-shadow: 0 0 0 3px rgba(71,104,152,.12);
+}
+
+.password-field input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: #eef2f7;
+  background: transparent;
+  padding: 12px 0;
+  font: inherit;
+}
+
+.password-field input::placeholder {
+  color: #4f5b6d;
+}
+
+.login-error {
+  color: #ffb8a8;
+  font-size: 11px;
+}
+
+.login-foot {
+  margin-top: 18px;
+  padding-top: 15px;
+  border-top: 1px solid #171f2b;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #657187;
+  font-size: 10px;
+}
+
+.login-alert {
+  margin: 18px 0 0;
+}
+
+.loading-card {
+  min-height: 150px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  color: #7e8a9d;
+  font-size: 11px;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
