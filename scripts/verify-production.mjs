@@ -6,6 +6,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 function summary(data) {
   const selfTest = data?.selfTest || {}
+  const deep = data?.deepAcceptance || {}
   return {
     service: data?.service,
     authConfigured: data?.authConfigured,
@@ -16,7 +17,13 @@ function summary(data) {
     lastRun: selfTest.lastRun,
     failedChecks: Array.isArray(selfTest.checks)
       ? selfTest.checks.filter((item) => item.status !== 'pass')
-      : []
+      : [],
+    deepStatus: deep.status,
+    deepPassed: deep.passed,
+    deepFailed: deep.failed,
+    deepExpected: deep.expected,
+    deepVersion: deep.version,
+    deepChecks: Array.isArray(deep.checks) ? deep.checks : []
   }
 }
 
@@ -41,7 +48,10 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
       ' selfTest=' + (last.status || 'missing') +
       ' passed=' + (last.passed ?? '-') +
       ' failed=' + (last.failed ?? '-') +
-      ' expected=' + (last.expected ?? '-')
+      ' expected=' + (last.expected ?? '-') +
+      ' deep=' + (last.deepStatus || 'missing') +
+      ' deepPassed=' + (last.deepPassed ?? '-') +
+      ' deepFailed=' + (last.deepFailed ?? '-')
     )
 
     const checks = data?.selfTest?.checks
@@ -58,9 +68,16 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
       data?.selfTest?.failed === 0 &&
       data?.selfTest?.expected === 15 &&
       allChecksPresent &&
-      checks.every((item) => item.status === 'pass')
+      checks.every((item) => item.status === 'pass') &&
+      data?.deepAcceptance?.status === 'pass' &&
+      data?.deepAcceptance?.passed === 5 &&
+      data?.deepAcceptance?.failed === 0 &&
+      data?.deepAcceptance?.expected === 5 &&
+      Array.isArray(data?.deepAcceptance?.checks) &&
+      data.deepAcceptance.checks.length === 5 &&
+      data.deepAcceptance.checks.every((item) => item.status === 'pass')
     ) {
-      console.log('[production-smoke] PASS: production service and all 15 self-tests are healthy.')
+      console.log('[production-smoke] PASS: recurring 15/15 and one-time deep acceptance 5/5 are healthy.')
       process.exit(0)
     }
   } catch (error) {
@@ -71,7 +88,7 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
   if (attempt < attempts) await sleep(delayMs)
 }
 
-console.error('[production-smoke] FAIL: production did not reach a fully healthy self-test state.')
+console.error('[production-smoke] FAIL: production did not reach recurring 15/15 + deep acceptance 5/5.')
 if (last) console.error(JSON.stringify(last, null, 2))
 if (lastError) console.error('Last request error:', lastError)
 process.exit(1)
