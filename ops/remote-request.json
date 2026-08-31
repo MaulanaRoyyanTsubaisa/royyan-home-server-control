@@ -1,8 +1,8 @@
 {
   "enabled": true,
-  "id": "restart-learnwithroyyan-20260831-2157",
-  "action": "restart",
-  "target": "learnwithroyyan",
-  "note": "Recover managed app after public probe returned HTTP 502.",
-  "confirm": "GITOPS_SAFE_EXECUTE"
+  "id": "health-portfolio-20260831-2210",
+  "action": "health",
+  "target": "portfolio",
+  "note": "Confirm whether portfolio is the managed app behind fleet 9/10.",
+  "confirm": null
 }
