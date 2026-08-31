@@ -24,6 +24,10 @@ import {
   getGitOpsBridgePublicState,
   registerGitOpsBridge
 } from './gitOpsBridge.js'
+import {
+  getControlReconcilerState,
+  scheduleControlReconciler
+} from './controlReconciler.js'
 
 const execFileAsync = promisify(execFile)
 const app = express()
@@ -328,6 +332,7 @@ app.get('/api/health', (_req, res) => {
     deepAcceptance: getPublicDeepAcceptanceState(),
     gitOpsBridge: getGitOpsBridgePublicState(),
     infrastructureV3: getInfrastructureV3PublicState(),
+    controlReconciler: getControlReconcilerState(),
     at: new Date().toISOString()
   })
 })
@@ -624,4 +629,5 @@ app.listen(PORT, HOST, () => {
     port: PORT,
     password: CONTROL_ADMIN_PASSWORD
   })
+  scheduleControlReconciler()
 })
