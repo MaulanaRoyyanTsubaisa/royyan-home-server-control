@@ -1,8 +1,8 @@
 {
   "enabled": true,
-  "id": "bridge-status-20260831-1539",
-  "action": "status",
-  "target": null,
-  "note": "Force control-panel webhook/deploy convergence and verify GitOps bridge.",
+  "id": "health-learnwithroyyan-20260831-1649",
+  "action": "health",
+  "target": "learnwithroyyan",
+  "note": "Production validation: investigate public HTTP 502 for LearnWithRoyyan.",
   "confirm": null
 }
