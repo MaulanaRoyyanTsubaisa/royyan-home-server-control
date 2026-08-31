@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Activity,
   AlertTriangle,
@@ -370,10 +370,8 @@ export default function App() {
   const serverName = overview?.system?.hostname || 'home-server'
   const currentTitle = navItems.find((item) => item.id === active)?.label || 'Overview'
 
-  const loadText = useMemo(() => {
-    const load = overview?.system?.loadAverage?.[0]
-    return Number.isFinite(load) ? load.toFixed(2) : '—'
-  }, [overview])
+  const load = overview?.system?.loadAverage?.[0]
+  const loadText = Number.isFinite(load) ? load.toFixed(2) : '—'
 
   return (
     <div className="app-shell">
