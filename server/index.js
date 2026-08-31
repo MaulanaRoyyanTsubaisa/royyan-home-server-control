@@ -14,6 +14,11 @@ import {
   getPublicSelfTestState,
   scheduleProductionSelfTest
 } from './productionSelfTest.js'
+import {
+  getDetailedDeepAcceptanceState,
+  getPublicDeepAcceptanceState,
+  scheduleDeepProductionAcceptance
+} from './deepProductionAcceptance.js'
 
 const execFileAsync = promisify(execFile)
 const app = express()
@@ -315,6 +320,7 @@ app.get('/api/health', (_req, res) => {
     service: 'royyan-home-server-control',
     authConfigured: Boolean(CONTROL_ADMIN_PASSWORD && CONTROL_SESSION_SECRET),
     selfTest: getPublicSelfTestState(),
+    deepAcceptance: getPublicDeepAcceptanceState(),
     at: new Date().toISOString()
   })
 })
@@ -375,6 +381,10 @@ app.use('/api', (req, res, next) => {
 
 app.get('/api/selftest', (_req, res) => {
   res.json({ ok: true, ...getDetailedSelfTestState() })
+})
+
+app.get('/api/deep-acceptance', (_req, res) => {
+  res.json({ ok: true, ...getDetailedDeepAcceptanceState() })
 })
 
 registerControlPlaneV2({
@@ -581,6 +591,10 @@ app.use((req, res, next) => {
 app.listen(PORT, HOST, () => {
   console.log('Royyan Home Server Control listening on http://' + HOST + ':' + PORT)
   scheduleProductionSelfTest({
+    port: PORT,
+    password: CONTROL_ADMIN_PASSWORD
+  })
+  scheduleDeepProductionAcceptance({
     port: PORT,
     password: CONTROL_ADMIN_PASSWORD
   })
