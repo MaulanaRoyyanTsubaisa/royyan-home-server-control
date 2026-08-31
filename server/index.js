@@ -8,6 +8,22 @@ const authConfigured = Boolean(
   process.env.CONTROL_SESSION_SECRET
 )
 
+const CONTROL_APP_ALIASES = new Set([
+  'control',
+  'royyan-home-server-control',
+  'royyan-control',
+  'home-server-control'
+])
+const originalApps = String(process.env.HERMES_APPS || '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean)
+const filteredApps = originalApps.filter(
+  (value) => !CONTROL_APP_ALIASES.has(value.toLowerCase())
+)
+const controlSelfFiltered = filteredApps.length !== originalApps.length
+if (originalApps.length) process.env.HERMES_APPS = filteredApps.join(',')
+
 let phase = 'booting'
 let bootError = null
 
@@ -17,6 +33,8 @@ function healthPayload() {
     service: 'royyan-home-server-control',
     phase,
     authConfigured,
+    managedAppsCount: filteredApps.length || null,
+    controlSelfFiltered,
     bootError: bootError ? String(bootError).slice(0, 240) : null,
     at: new Date().toISOString()
   }
@@ -55,6 +73,9 @@ bootstrap.on('error', (error) => {
 
 bootstrap.listen(PORT, HOST, async () => {
   console.log('Royyan control bootstrap listening on http://' + HOST + ':' + PORT)
+  if (controlSelfFiltered) {
+    console.log('Removed control-plane self alias from HERMES_APPS before runtime startup')
+  }
   try {
     phase = 'loading-runtime'
     const runtime = await import('./runtime.js')
