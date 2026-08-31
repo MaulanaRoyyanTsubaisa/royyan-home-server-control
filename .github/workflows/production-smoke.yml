@@ -26,7 +26,7 @@ jobs:
           node-version: 22
           package-manager-cache: false
 
-      - name: Poll production: 15 recurring + 5 deep acceptance checks
+      - name: "Poll production: 15 recurring + 5 deep acceptance checks"
         env:
           CONTROL_HEALTH_URL: https://control.maulanaroyyantsubaisa.my.id/api/health
           CONTROL_HEALTH_ATTEMPTS: 60
