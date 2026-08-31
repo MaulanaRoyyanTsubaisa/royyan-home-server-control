@@ -1,92 +1,115 @@
 {
-  "at": "2026-08-31T09:48:20.409Z",
-  "online": 9,
-  "total": 12,
-  "results": [
+  "at": "2026-08-31T14:56:13.050Z",
+  "apps": [
     {
       "app": "portfolio",
       "url": "https://portfolio.maulanaroyyantsubaisa.my.id/",
-      "status": 404,
+      "http": 404,
       "reachable": false,
-      "latencyMs": 846
+      "maintenance": false,
+      "latencyMs": 2031,
+      "location": null,
+      "server": "cloudflare"
     },
     {
       "app": "opspilot",
       "url": "https://opspilot.maulanaroyyantsubaisa.my.id/",
-      "status": 200,
+      "http": 200,
       "reachable": true,
-      "latencyMs": 803
+      "maintenance": false,
+      "latencyMs": 963,
+      "location": null,
+      "server": "cloudflare"
     },
     {
       "app": "bantuai",
       "url": "https://bantuai.maulanaroyyantsubaisa.my.id/",
-      "status": 200,
+      "http": 200,
       "reachable": true,
-      "latencyMs": 679
+      "maintenance": false,
+      "latencyMs": 1023,
+      "location": null,
+      "server": "cloudflare"
     },
     {
       "app": "niagabot",
       "url": "https://niagabot.maulanaroyyantsubaisa.my.id/",
-      "status": 200,
+      "http": 200,
       "reachable": true,
-      "latencyMs": 842
+      "maintenance": false,
+      "latencyMs": 969,
+      "location": null,
+      "server": "cloudflare"
     },
     {
       "app": "sajiin",
       "url": "https://sajiin.maulanaroyyantsubaisa.my.id/",
-      "status": 200,
+      "http": 200,
       "reachable": true,
-      "latencyMs": 793
+      "maintenance": false,
+      "latencyMs": 1048,
+      "location": null,
+      "server": "cloudflare"
     },
     {
       "app": "kontenin",
       "url": "https://kontenin.maulanaroyyantsubaisa.my.id/",
-      "status": 200,
+      "http": 200,
       "reachable": true,
-      "latencyMs": 743
+      "maintenance": false,
+      "latencyMs": 878,
+      "location": null,
+      "server": "cloudflare"
     },
     {
       "app": "lamarin",
       "url": "https://lamarin.maulanaroyyantsubaisa.my.id/",
-      "status": 200,
+      "http": 200,
       "reachable": true,
-      "latencyMs": 749
+      "maintenance": false,
+      "latencyMs": 1029,
+      "location": null,
+      "server": "cloudflare"
     },
     {
       "app": "learnwithroyyan",
       "url": "https://learnwithroyyan.maulanaroyyantsubaisa.my.id/",
-      "status": 502,
+      "http": 502,
       "reachable": false,
-      "latencyMs": 661
+      "maintenance": false,
+      "latencyMs": 867,
+      "location": null,
+      "server": "cloudflare"
     },
     {
       "app": "rumahin",
       "url": "https://rumahin.maulanaroyyantsubaisa.my.id/",
-      "status": 200,
+      "http": 200,
       "reachable": true,
-      "latencyMs": 741
+      "maintenance": false,
+      "latencyMs": 1697,
+      "location": null,
+      "server": "cloudflare"
     },
     {
       "app": "tagihin",
       "url": "https://tagihin.maulanaroyyantsubaisa.my.id/",
-      "status": 200,
+      "http": 200,
       "reachable": true,
-      "latencyMs": 805
+      "maintenance": false,
+      "latencyMs": 897,
+      "location": null,
+      "server": "cloudflare"
     },
     {
       "app": "janjiin",
       "url": "https://janjiin.maulanaroyyantsubaisa.my.id/",
-      "status": 200,
+      "http": 200,
       "reachable": true,
-      "latencyMs": 748
-    },
-    {
-      "app": "portfolio-main-domain",
-      "url": "https://maulana-royyan-tsubaisa.my.id/",
-      "status": 0,
-      "reachable": false,
-      "latencyMs": 113,
-      "error": "fetch failed"
+      "maintenance": false,
+      "latencyMs": 863,
+      "location": null,
+      "server": "cloudflare"
     }
   ]
 }
