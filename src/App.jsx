@@ -28,11 +28,14 @@ import {
   Server,
   ShieldCheck,
   Terminal,
-  TimerReset
+  TimerReset,
+  Zap
 } from 'lucide-react'
+import MissionControl from './MissionControl.jsx'
 
 const navItems = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'mission', label: 'Mission Control', icon: Zap },
   { id: 'apps', label: 'Apps', icon: AppWindow },
   { id: 'deployments', label: 'Deployments', icon: Rocket },
   { id: 'backups', label: 'Backups', icon: DatabaseBackup },
@@ -566,6 +569,13 @@ export default function App() {
           </>
         )}
 
+        {active === 'mission' && (
+          <MissionControl
+            apps={config?.apps || []}
+            onOpenTelegram={() => setActive('telegram')}
+          />
+        )}
+
         {active === 'apps' && (
           <Panel title="Managed applications" eyebrow="SAFE OPERATIONS">
             <div className="apps-list">
@@ -778,7 +788,7 @@ export default function App() {
         )}
 
         <div className="mobile-nav">
-          {navItems.slice(0, 5).map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon
             return (
               <button key={item.id} className={active === item.id ? 'active' : ''} onClick={() => setActive(item.id)}>

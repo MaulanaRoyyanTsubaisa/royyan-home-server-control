@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { statfs } from 'node:fs/promises'
 import { execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
+import { registerControlPlaneV2 } from './controlPlaneV2.js'
 
 const execFileAsync = promisify(execFile)
 const app = express()
@@ -364,6 +365,17 @@ app.use('/api', (req, res, next) => {
     return res.status(401).json({ ok: false, error: 'Authentication required' })
   }
   next()
+})
+
+registerControlPlaneV2({
+  app,
+  APPS,
+  runSafeOps,
+  runDashboardView,
+  remember,
+  sendViaHermesTelegram,
+  HERMES_OPS_BIN,
+  authConfigured: Boolean(CONTROL_ADMIN_PASSWORD && CONTROL_SESSION_SECRET)
 })
 
 app.get('/api/overview', async (_req, res) => {

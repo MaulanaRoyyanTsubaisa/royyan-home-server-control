@@ -28,9 +28,12 @@ jobs:
         run: npm run build
 
       - name: Check server syntax
-        run: node --check server/index.js
+        run: |
+          node --check server/index.js
+          node --check server/controlPlaneV2.js
 
-      - name: Check installer shell syntax
+      - name: Check installer and helper syntax
         run: |
           bash -n scripts/install.sh
           bash -n scripts/install-hermes-control.sh
+          python3 -m py_compile scripts/hermes-control-maintenance.py scripts/hermes-backup-drill.py
