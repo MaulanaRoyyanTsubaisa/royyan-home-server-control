@@ -1,0 +1,8 @@
+{
+  "enabled": false,
+  "id": "disabled-default",
+  "action": "status",
+  "target": null,
+  "note": "GitOps Safe Ops Bridge. Set enabled=true and use an allowlisted action.",
+  "confirm": null
+}

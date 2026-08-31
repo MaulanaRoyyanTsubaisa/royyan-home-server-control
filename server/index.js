@@ -19,6 +19,11 @@ import {
   getPublicDeepAcceptanceState,
   scheduleDeepProductionAcceptance
 } from './deepProductionAcceptance.js'
+import { registerInfrastructureV3 } from './infrastructureV3.js'
+import {
+  getGitOpsBridgePublicState,
+  registerGitOpsBridge
+} from './gitOpsBridge.js'
 
 const execFileAsync = promisify(execFile)
 const app = express()
@@ -321,6 +326,7 @@ app.get('/api/health', (_req, res) => {
     authConfigured: Boolean(CONTROL_ADMIN_PASSWORD && CONTROL_SESSION_SECRET),
     selfTest: getPublicSelfTestState(),
     deepAcceptance: getPublicDeepAcceptanceState(),
+    gitOpsBridge: getGitOpsBridgePublicState(),
     at: new Date().toISOString()
   })
 })
@@ -377,6 +383,25 @@ app.use('/api', (req, res, next) => {
     return res.status(401).json({ ok: false, error: 'Authentication required' })
   }
   next()
+})
+
+registerInfrastructureV3({
+  app,
+  APPS,
+  runSafeOps,
+  runDashboardView,
+  sendViaHermesTelegram,
+  githubOwner: GITHUB_OWNER,
+  githubToken: process.env.GITHUB_TOKEN || '',
+  selfTestGetter: getDetailedSelfTestState,
+  deepAcceptanceGetter: getDetailedDeepAcceptanceState
+})
+
+registerGitOpsBridge({
+  APPS,
+  runSafeOps,
+  runDashboardView,
+  sendViaHermesTelegram
 })
 
 app.get('/api/selftest', (_req, res) => {
