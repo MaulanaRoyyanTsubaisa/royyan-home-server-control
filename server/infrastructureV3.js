@@ -119,7 +119,7 @@ async function resources() {
   }
 }
 
-function parseBackupState(raw = '') {
+export function parseBackupState(raw = '') {
   const text = String(raw || '')
   const ratio =
     text.match(/backup\s+verification:\s*(\d+)\s*\/\s*(\d+)\s*ok/i) ||
