@@ -44,7 +44,7 @@ Cloudflare wildcard tunnel
 hermes-router
     |
     v
-control.maulanaroyyantsubaisa.my.id -> localhost:8094
+control.maulanaroyyantsubaisa.my.id -> localhost:<dedicated port 8200-8299>
     |
     v
 Royyan Home Server Control
@@ -87,18 +87,21 @@ The installer generates:
 - `CONTROL_ADMIN_PASSWORD`
 - `CONTROL_SESSION_SECRET`
 
-The password is printed only in the terminal during first install and is not sent to Telegram.
+The password is printed in the local terminal after a successful installer run and is never sent to Telegram.
 
 Sessions use an HttpOnly, SameSite=Strict cookie.
 
 ## One-time server integration
 
-After the repository is available in the Hermes workspace, run:
+After the repository is available in the Hermes workspace, do not change workspace ownership or permissions. Run it by absolute path:
 
 ```bash
-cd /srv/hermes-workspace/repos/royyan-home-server-control
-sudo bash scripts/install-hermes-control.sh
+sudo -u hermes git -C /srv/hermes-workspace/repos/royyan-home-server-control fetch origin main
+sudo -u hermes git -C /srv/hermes-workspace/repos/royyan-home-server-control reset --hard origin/main
+sudo bash /srv/hermes-workspace/repos/royyan-home-server-control/scripts/install-hermes-control.sh
 ```
+
+The installer keeps the existing Hermes workspace isolation intact and selects a free control-plane port from 8200-8299, outside the generic Hermes auto-provision range.
 
 The installer is idempotent and handles:
 
