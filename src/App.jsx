@@ -16,8 +16,10 @@ import {
   Github,
   HardDrive,
   HeartPulse,
+  KeyRound,
   LayoutDashboard,
   MemoryStick,
+  LogOut,
   MessageCircle,
   Play,
   RefreshCw,
@@ -46,7 +48,11 @@ async function api(path, options) {
     ...options
   })
   const payload = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(payload.error || 'Request failed')
+  if (!response.ok) {
+    const error = new Error(payload.error || 'Request failed')
+    error.status = response.status
+    throw error
+  }
   return payload
 }
 
@@ -121,6 +127,79 @@ function StatusPill({ online = true, children }) {
   )
 }
 
+function LoginScreen({ configured, onAuthenticated }) {
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const submit = async (event) => {
+    event.preventDefault()
+    if (!password) return
+    setBusy(true)
+    setError('')
+    try {
+      await api('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ password })
+      })
+      setPassword('')
+      onAuthenticated()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="login-shell">
+      <div className="login-card">
+        <div className="brand-mark login-mark"><CloudCog size={27} /></div>
+        <span className="eyebrow">ROYyan HOME INFRASTRUCTURE</span>
+        <h1>Server Control</h1>
+        <p>
+          Protected control plane for Hermes, deployments, backups, GitHub,
+          Telegram and server health.
+        </p>
+
+        {!configured ? (
+          <div className="alert login-alert">
+            <AlertTriangle size={17} />
+            Authentication has not been configured on the server yet.
+          </div>
+        ) : (
+          <form className="login-form" onSubmit={submit}>
+            <label>
+              <span>Admin password</span>
+              <div className="password-field">
+                <KeyRound size={17} />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  autoComplete="current-password"
+                  autoFocus
+                  placeholder="Enter control password"
+                />
+              </div>
+            </label>
+            {error && <div className="login-error">{error}</div>}
+            <button className="primary-btn full" disabled={busy || !password}>
+              <ShieldCheck size={17} />
+              {busy ? 'Authenticating…' : 'Open control panel'}
+            </button>
+          </form>
+        )}
+
+        <div className="login-foot">
+          <ShieldCheck size={14} />
+          No raw shell is exposed to the browser.
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function AppCard({ name, onAction, busy }) {
   return (
     <article className="app-card">
@@ -138,6 +217,9 @@ function AppCard({ name, onAction, busy }) {
         <button className="ghost-btn" disabled={busy} onClick={() => onAction('restart', name)}>
           <RotateCcw size={15} /> Restart
         </button>
+        <button className="ghost-btn" disabled={busy} onClick={() => onAction('backup', name)}>
+          <DatabaseBackup size={15} /> Backup
+        </button>
         <button className="primary-btn compact" disabled={busy} onClick={() => onAction('deploy', name)}>
           <Rocket size={15} /> Deploy
         </button>
@@ -147,6 +229,7 @@ function AppCard({ name, onAction, busy }) {
 }
 
 export default function App() {
+  const [auth, setAuth] = useState({ checked: false, configured: false, authenticated: false })
   const [active, setActive] = useState('overview')
   const [overview, setOverview] = useState(null)
   const [config, setConfig] = useState(null)
@@ -155,9 +238,26 @@ export default function App() {
   const [consoleOutput, setConsoleOutput] = useState('Ready. No raw shell is exposed to the browser.')
   const [activity, setActivity] = useState([])
   const [github, setGithub] = useState(null)
-  const [telegramMessages, setTelegramMessages] = useState([])
+  const [hermesStatus, setHermesStatus] = useState('')
   const [telegramText, setTelegramText] = useState('')
   const [error, setError] = useState('')
+
+  const checkAuth = async () => {
+    try {
+      const status = await api('/api/auth/status')
+      setAuth({
+        checked: true,
+        configured: Boolean(status.configured),
+        authenticated: Boolean(status.authenticated)
+      })
+    } catch {
+      setAuth({ checked: true, configured: false, authenticated: false })
+    }
+  }
+
+  useEffect(() => {
+    checkAuth()
+  }, [])
 
   const refreshCore = async () => {
     try {
@@ -179,25 +279,27 @@ export default function App() {
   }
 
   useEffect(() => {
+    if (!auth.authenticated) return
     refreshCore()
     const timer = setInterval(refreshCore, 5000)
     return () => clearInterval(timer)
-  }, [])
+  }, [auth.authenticated])
 
   useEffect(() => {
-    if (active !== 'github') return
+    if (!auth.authenticated || active !== 'github') return
     api('/api/github').then(setGithub).catch((err) => setGithub({ ok: false, error: err.message }))
-  }, [active])
+  }, [active, auth.authenticated])
 
   useEffect(() => {
-    if (active !== 'telegram') return
-    const load = () => api('/api/telegram/messages')
-      .then((data) => setTelegramMessages(data.messages || []))
-      .catch(() => {})
+    if (!auth.authenticated || active !== 'telegram') return
+    const load = () =>
+      api('/api/hermes/status')
+        .then((data) => setHermesStatus(data.stdout || data.stderr || 'Hermes status unavailable.'))
+        .catch((err) => setHermesStatus('ERROR: ' + err.message))
     load()
-    const timer = setInterval(load, 5000)
+    const timer = setInterval(load, 10000)
     return () => clearInterval(timer)
-  }, [active])
+  }, [active, auth.authenticated])
 
   const runAction = async (command, appName) => {
     const key = command + ':' + (appName || '')
@@ -233,6 +335,36 @@ export default function App() {
     } finally {
       setBusy('')
     }
+  }
+
+  const logout = async () => {
+    try {
+      await api('/api/auth/logout', { method: 'POST' })
+    } finally {
+      setAuth((current) => ({ ...current, authenticated: false }))
+    }
+  }
+
+  if (!auth.checked) {
+    return (
+      <div className="login-shell">
+        <div className="login-card loading-card">
+          <RefreshCw className="spin" size={24} />
+          <span>Checking control-plane session…</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (!auth.authenticated) {
+    return (
+      <LoginScreen
+        configured={auth.configured}
+        onAuthenticated={() =>
+          setAuth((current) => ({ ...current, authenticated: true }))
+        }
+      />
+    )
   }
 
   const serverName = overview?.system?.hostname || 'home-server'
@@ -287,6 +419,9 @@ export default function App() {
             <button className="icon-btn" onClick={refreshCore} aria-label="Refresh">
               <RefreshCw size={17} />
             </button>
+            <button className="icon-btn" onClick={logout} aria-label="Log out">
+              <LogOut size={17} />
+            </button>
           </div>
         </header>
 
@@ -309,8 +444,8 @@ export default function App() {
                 <button className="primary-btn" disabled={busy} onClick={() => runAction('health')}>
                   <HeartPulse size={17} /> Health check
                 </button>
-                <button className="secondary-btn" disabled={busy} onClick={() => runAction('backup')}>
-                  <Archive size={17} /> Run backup
+                <button className="secondary-btn" disabled={busy} onClick={() => setActive('backups')}>
+                  <Archive size={17} /> Backup center
                 </button>
               </div>
             </section>
@@ -380,9 +515,9 @@ export default function App() {
                     <TimerReset size={18} />
                     <span>Timers</span>
                   </button>
-                  <button onClick={() => runAction('backup')} disabled={busy}>
+                  <button onClick={() => setActive('backups')} disabled={busy}>
                     <DatabaseBackup size={18} />
-                    <span>Backup</span>
+                    <span>Backups</span>
                   </button>
                 </div>
               </Panel>
@@ -441,19 +576,24 @@ export default function App() {
 
         {active === 'backups' && (
           <div className="two-col">
-            <Panel title="Backup control" eyebrow="SERVER DATA">
+            <Panel title="Backup control" eyebrow="PER APPLICATION">
               <div className="feature-callout">
                 <DatabaseBackup size={28} />
                 <div>
                   <strong>Manual safe backup</strong>
-                  <p>Triggers the existing server backup command. The web UI never receives raw sudo access.</p>
+                  <p>Each backup goes through the existing Hermes allowlist. No raw sudo is exposed to the browser.</p>
                 </div>
               </div>
-              <button className="primary-btn full" onClick={() => runAction('backup')} disabled={busy}>
-                <DatabaseBackup size={17} /> Run backup now
-              </button>
+              <div className="apps-list compact-list">
+                {(config?.apps || []).map((name) => (
+                  <button className="row-action" key={name} onClick={() => runAction('backup', name)} disabled={busy}>
+                    <span><DatabaseBackup size={16} /> {name}</span>
+                    <Play size={15} />
+                  </button>
+                ))}
+              </div>
             </Panel>
-            <Panel title="Timers" eyebrow="AUTOMATION">
+            <Panel title="Timers & output" eyebrow="AUTOMATION">
               <button className="secondary-btn" onClick={() => runAction('timers')} disabled={busy}>
                 <TimerReset size={17} /> Inspect backup timers
               </button>
@@ -525,7 +665,7 @@ export default function App() {
                 <Bot size={30} />
                 <div>
                   <strong>Hermes Telegram</strong>
-                  <span>{config?.telegram?.configured ? 'Outbound messaging configured' : 'Add bot token + chat ID on the server'}</span>
+                  <span>{config?.telegram?.configured ? 'Using the existing Hermes safe Telegram sender' : 'Hermes Telegram sender is unavailable'}</span>
                 </div>
                 <StatusPill online={config?.telegram?.configured}>
                   {config?.telegram?.configured ? 'Ready' : 'Setup needed'}
@@ -543,21 +683,12 @@ export default function App() {
                 </button>
               </form>
             </Panel>
-            <Panel title="Incoming messages" eyebrow="WEBHOOK FEED">
-              <div className="message-list">
-                {telegramMessages.length ? telegramMessages.map((message) => (
-                  <div className="message-row" key={message.id}>
-                    <div className="avatar">{String(message.from || 'T').slice(0, 1).toUpperCase()}</div>
-                    <div>
-                      <strong>{message.from}</strong>
-                      <p>{message.text}</p>
-                      <span>{timeAgo(message.at)}</span>
-                    </div>
-                  </div>
-                )) : (
-                  <div className="empty">No webhook messages received yet.</div>
-                )}
-              </div>
+            <Panel title="Shared Hermes state" eyebrow="TELEGRAM ↔ WEB">
+              <p className="muted">
+                Telegram quick commands and this website use the same root-controlled Hermes dashboard helpers.
+                Actions from either side are reflected in the same server state.
+              </p>
+              <pre className="console tall">{hermesStatus || 'Loading Hermes status…'}</pre>
             </Panel>
           </div>
         )}
