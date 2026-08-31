@@ -1,0 +1,84 @@
+{
+  "at": "2026-08-31T09:46:27.206Z",
+  "online": 9,
+  "total": 11,
+  "results": [
+    {
+      "app": "portfolio",
+      "url": "https://portfolio.maulanaroyyantsubaisa.my.id/",
+      "status": 404,
+      "reachable": false,
+      "latencyMs": 860
+    },
+    {
+      "app": "opspilot",
+      "url": "https://opspilot.maulanaroyyantsubaisa.my.id/",
+      "status": 200,
+      "reachable": true,
+      "latencyMs": 835
+    },
+    {
+      "app": "bantuai",
+      "url": "https://bantuai.maulanaroyyantsubaisa.my.id/",
+      "status": 200,
+      "reachable": true,
+      "latencyMs": 933
+    },
+    {
+      "app": "niagabot",
+      "url": "https://niagabot.maulanaroyyantsubaisa.my.id/",
+      "status": 200,
+      "reachable": true,
+      "latencyMs": 807
+    },
+    {
+      "app": "sajiin",
+      "url": "https://sajiin.maulanaroyyantsubaisa.my.id/",
+      "status": 200,
+      "reachable": true,
+      "latencyMs": 796
+    },
+    {
+      "app": "kontenin",
+      "url": "https://kontenin.maulanaroyyantsubaisa.my.id/",
+      "status": 200,
+      "reachable": true,
+      "latencyMs": 879
+    },
+    {
+      "app": "lamarin",
+      "url": "https://lamarin.maulanaroyyantsubaisa.my.id/",
+      "status": 200,
+      "reachable": true,
+      "latencyMs": 855
+    },
+    {
+      "app": "learnwithroyyan",
+      "url": "https://learnwithroyyan.maulanaroyyantsubaisa.my.id/",
+      "status": 502,
+      "reachable": false,
+      "latencyMs": 505
+    },
+    {
+      "app": "rumahin",
+      "url": "https://rumahin.maulanaroyyantsubaisa.my.id/",
+      "status": 200,
+      "reachable": true,
+      "latencyMs": 918
+    },
+    {
+      "app": "tagihin",
+      "url": "https://tagihin.maulanaroyyantsubaisa.my.id/",
+      "status": 200,
+      "reachable": true,
+      "latencyMs": 824
+    },
+    {
+      "app": "janjiin",
+      "url": "https://janjiin.maulanaroyyantsubaisa.my.id/",
+      "status": 200,
+      "reachable": true,
+      "latencyMs": 787
+    }
+  ]
+}
