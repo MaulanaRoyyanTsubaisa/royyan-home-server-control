@@ -35,6 +35,8 @@ jobs:
           node --check server/deepProductionAcceptance.js
           node --check server/infrastructureV3.js
           node --check server/gitOpsBridge.js
+          node --check server/controlReconciler.js
+          node --check server/infrastructureV3SelfTest.js
 
       - name: Run server unit tests
         run: node --test server/controlPlaneV2.test.js server/infrastructureV3.test.js
