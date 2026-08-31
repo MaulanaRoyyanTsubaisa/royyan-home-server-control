@@ -312,8 +312,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const dist = path.resolve(__dirname, '../dist')
 
 app.use(express.static(dist))
-app.get('*', (_req, res, next) => {
-  if (_req.path.startsWith('/api/')) return next()
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) return next()
   res.sendFile(path.join(dist, 'index.html'), (error) => {
     if (error) next()
   })
