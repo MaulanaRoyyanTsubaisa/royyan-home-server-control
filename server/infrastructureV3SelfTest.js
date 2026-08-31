@@ -327,7 +327,12 @@ export async function runV3RealAcceptance({ port, password }) {
   try {
     const cookie = await login(base, password)
     const overview = await json(base, '/api/v3/overview', cookie, { timeout: 120000 })
-    const target = overview.snapshot.apps.find((x) => x.reachable && x.status !== 503)?.app
+    const replay = await json(base, '/api/v3/deployment-replay', cookie)
+    const healthyApps = overview.snapshot.apps.filter((x) => x.reachable && x.status !== 503)
+    const target =
+      healthyApps.find((x) => x.app === replay.app)?.app ||
+      healthyApps.find((x) => x.app === 'rumahin')?.app ||
+      healthyApps[0]?.app
     if (!target) throw new Error('No healthy app available for V3 real acceptance')
 
     await check(rows, 'A', 'Real safe restart chaos recovery', async () => {
