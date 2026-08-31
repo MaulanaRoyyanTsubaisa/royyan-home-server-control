@@ -1,84 +1,92 @@
 {
-  "at": "2026-08-31T09:46:27.206Z",
+  "at": "2026-08-31T09:48:20.409Z",
   "online": 9,
-  "total": 11,
+  "total": 12,
   "results": [
     {
       "app": "portfolio",
       "url": "https://portfolio.maulanaroyyantsubaisa.my.id/",
       "status": 404,
       "reachable": false,
-      "latencyMs": 860
+      "latencyMs": 846
     },
     {
       "app": "opspilot",
       "url": "https://opspilot.maulanaroyyantsubaisa.my.id/",
       "status": 200,
       "reachable": true,
-      "latencyMs": 835
+      "latencyMs": 803
     },
     {
       "app": "bantuai",
       "url": "https://bantuai.maulanaroyyantsubaisa.my.id/",
       "status": 200,
       "reachable": true,
-      "latencyMs": 933
+      "latencyMs": 679
     },
     {
       "app": "niagabot",
       "url": "https://niagabot.maulanaroyyantsubaisa.my.id/",
       "status": 200,
       "reachable": true,
-      "latencyMs": 807
+      "latencyMs": 842
     },
     {
       "app": "sajiin",
       "url": "https://sajiin.maulanaroyyantsubaisa.my.id/",
       "status": 200,
       "reachable": true,
-      "latencyMs": 796
+      "latencyMs": 793
     },
     {
       "app": "kontenin",
       "url": "https://kontenin.maulanaroyyantsubaisa.my.id/",
       "status": 200,
       "reachable": true,
-      "latencyMs": 879
+      "latencyMs": 743
     },
     {
       "app": "lamarin",
       "url": "https://lamarin.maulanaroyyantsubaisa.my.id/",
       "status": 200,
       "reachable": true,
-      "latencyMs": 855
+      "latencyMs": 749
     },
     {
       "app": "learnwithroyyan",
       "url": "https://learnwithroyyan.maulanaroyyantsubaisa.my.id/",
       "status": 502,
       "reachable": false,
-      "latencyMs": 505
+      "latencyMs": 661
     },
     {
       "app": "rumahin",
       "url": "https://rumahin.maulanaroyyantsubaisa.my.id/",
       "status": 200,
       "reachable": true,
-      "latencyMs": 918
+      "latencyMs": 741
     },
     {
       "app": "tagihin",
       "url": "https://tagihin.maulanaroyyantsubaisa.my.id/",
       "status": 200,
       "reachable": true,
-      "latencyMs": 824
+      "latencyMs": 805
     },
     {
       "app": "janjiin",
       "url": "https://janjiin.maulanaroyyantsubaisa.my.id/",
       "status": 200,
       "reachable": true,
-      "latencyMs": 787
+      "latencyMs": 748
+    },
+    {
+      "app": "portfolio-main-domain",
+      "url": "https://maulana-royyan-tsubaisa.my.id/",
+      "status": 0,
+      "reachable": false,
+      "latencyMs": 113,
+      "error": "fetch failed"
     }
   ]
 }
