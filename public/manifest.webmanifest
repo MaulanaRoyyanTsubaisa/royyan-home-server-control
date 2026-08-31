@@ -1,0 +1,12 @@
+{
+  "name": "Royyan Home Server Control",
+  "short_name": "Royyan Server",
+  "description": "Protected Hermes home-server mission control.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#06090f",
+  "theme_color": "#070b12",
+  "icons": [
+    { "src": "/control-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
