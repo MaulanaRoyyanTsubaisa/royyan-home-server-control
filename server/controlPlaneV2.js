@@ -119,27 +119,49 @@ async function resourceSnapshot() {
   }
 }
 
-function backupSummary(raw = '') {
-  const match = raw.match(/(\d+)\s*\/\s*(\d+)\s*(?:verified|ok)/i)
-  const failure = /(?:FAILED|CORRUPT|INVALID)/i.test(raw)
-  const stale = /STALE/i.test(raw)
+export function backupSummary(raw = '') {
+  const text = String(raw || '')
+  const ratio =
+    text.match(/backup\s+verification:\s*(\d+)\s*\/\s*(\d+)\s*ok/i) ||
+    text.match(/(\d+)\s*\/\s*(\d+)\s*(?:verified|ok)/i)
+  const verifiedLine = text.match(/(?:verified|ok)\s*:\s*(\d+)/i)
+  const failedLine = text.match(/(?:failed|failures?)\s*:\s*(\d+)/i)
+  const staleLine = text.match(/stale\s*:\s*(\d+)/i)
+
+  const verified = ratio ? Number(ratio[1]) : verifiedLine ? Number(verifiedLine[1]) : null
+  const total = ratio ? Number(ratio[2]) : null
+  const failedCount = failedLine ? Number(failedLine[1]) : null
+  const staleCount = staleLine ? Number(staleLine[1]) : null
+
+  const failure =
+    failedCount !== null
+      ? failedCount > 0
+      : /\b(?:corrupt|invalid)\b/i.test(text) ||
+        /\bfailed\b(?!\s*:\s*0\b)/i.test(text)
+  const stale =
+    staleCount !== null
+      ? staleCount > 0
+      : /\bstale\b(?!\s*:\s*0\b)/i.test(text)
+
   return {
-    verified: match ? Number(match[1]) : null,
-    total: match ? Number(match[2]) : null,
+    verified,
+    total,
+    failedCount,
+    staleCount,
     failure,
     stale,
-    raw
+    raw: text
   }
 }
 
-function healthHint(raw, app) {
+export function healthHint(raw, app) {
   const line = String(raw || '')
     .split('\n')
     .find((candidate) => candidate.toLowerCase().includes(app.toLowerCase()))
   if (!line) return null
   const lower = line.toLowerCase()
-  if (/✅|online|healthy|\bok\b/.test(lower)) return 'healthy'
-  if (/❌|offline|failed|unhealthy/.test(lower)) return 'unhealthy'
+  if (/❌|\boffline\b|\bfailed\b|\bunhealthy\b/.test(lower)) return 'unhealthy'
+  if (/✅|\bonline\b|\bhealthy\b|\bok\b/.test(lower)) return 'healthy'
   return 'unknown'
 }
 
@@ -278,6 +300,21 @@ export function registerControlPlaneV2({
     if (!APPS.includes(target)) return res.status(400).json({ ok: false, error: 'Unknown app' })
 
     const guard = await getGuard()
+    if (req.body?.dryRun === true) {
+      return res.json({
+        ok: true,
+        dryRun: true,
+        app: target,
+        allowed: guard.allowed,
+        guard,
+        capability: {
+          safeOps: existsSync(HERMES_OPS_BIN),
+          command: 'deploy',
+          mutatingActionExecuted: false
+        }
+      })
+    }
+
     if (!guard.allowed) {
       await audit('web', 'deploy-blocked', { app: target, blockers: guard.blockers })
       return res.status(409).json({ ok: false, error: 'Deployment blocked by Resource Guard', guard })
@@ -359,6 +396,17 @@ export function registerControlPlaneV2({
     if (!existsSync(BACKUP_DRILL_SAFE)) {
       return res.status(501).json({ ok: false, error: 'Backup restore-drill helper is not installed yet' })
     }
+    if (req.body?.dryRun === true) {
+      const guard = await getGuard()
+      return res.json({
+        ok: true,
+        dryRun: true,
+        app: target,
+        helperInstalled: true,
+        resourceGuardAllowed: guard.allowed,
+        mutatingActionExecuted: false
+      })
+    }
     try {
       const result = await execSafe(BACKUP_DRILL_SAFE, [target], 240_000)
       await audit('web', 'backup-restore-drill', { app: target, ok: true })
@@ -420,6 +468,18 @@ export function registerControlPlaneV2({
     try {
       const status = await execSafe(HERMES_OPS_BIN, ['repo-status', repo], 30_000)
       const statusText = status.stdout || status.stderr || ''
+
+      if (req.body?.dryRun === true) {
+        return res.json({
+          ok: true,
+          dryRun: true,
+          repo,
+          status: statusText,
+          ownerAllowed: true,
+          mutatingActionExecuted: false
+        })
+      }
+
       if (statusText.startsWith('KNOWN ')) {
         return res.json({ ok: true, state: 'known', repo, status: statusText })
       }
@@ -470,6 +530,19 @@ export function registerControlPlaneV2({
       return res.status(501).json({ ok: false, error: 'Maintenance helper is not installed yet' })
     }
     try {
+      if (req.body?.dryRun === true) {
+        const status = await execSafe(MAINTENANCE_SAFE, ['status', target], 10_000)
+        return res.json({
+          ok: true,
+          dryRun: true,
+          app: target,
+          requestedAction: action,
+          status: status.stdout || status.stderr || '',
+          helperInstalled: true,
+          mutatingActionExecuted: false
+        })
+      }
+
       const result = await execSafe(MAINTENANCE_SAFE, [action, target], 30_000)
       await audit('web', `maintenance-${action}`, { app: target })
       res.json({ ok: true, app: target, enabled: action === 'on', ...result })

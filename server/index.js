@@ -9,6 +9,11 @@ import { statfs } from 'node:fs/promises'
 import { execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
 import { registerControlPlaneV2 } from './controlPlaneV2.js'
+import {
+  getDetailedSelfTestState,
+  getPublicSelfTestState,
+  scheduleProductionSelfTest
+} from './productionSelfTest.js'
 
 const execFileAsync = promisify(execFile)
 const app = express()
@@ -309,6 +314,7 @@ app.get('/api/health', (_req, res) => {
     ok: true,
     service: 'royyan-home-server-control',
     authConfigured: Boolean(CONTROL_ADMIN_PASSWORD && CONTROL_SESSION_SECRET),
+    selfTest: getPublicSelfTestState(),
     at: new Date().toISOString()
   })
 })
@@ -365,6 +371,10 @@ app.use('/api', (req, res, next) => {
     return res.status(401).json({ ok: false, error: 'Authentication required' })
   }
   next()
+})
+
+app.get('/api/selftest', (_req, res) => {
+  res.json({ ok: true, ...getDetailedSelfTestState() })
 })
 
 registerControlPlaneV2({
@@ -570,4 +580,8 @@ app.use((req, res, next) => {
 
 app.listen(PORT, HOST, () => {
   console.log('Royyan Home Server Control listening on http://' + HOST + ':' + PORT)
+  scheduleProductionSelfTest({
+    port: PORT,
+    password: CONTROL_ADMIN_PASSWORD
+  })
 })
