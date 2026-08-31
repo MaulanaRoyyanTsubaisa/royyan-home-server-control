@@ -29,3 +29,8 @@ jobs:
 
       - name: Check server syntax
         run: node --check server/index.js
+
+      - name: Check installer shell syntax
+        run: |
+          bash -n scripts/install.sh
+          bash -n scripts/install-hermes-control.sh
