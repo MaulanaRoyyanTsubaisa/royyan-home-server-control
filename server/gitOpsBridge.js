@@ -19,7 +19,8 @@ let publicState = {
   status: 'idle',
   action: null,
   target: null,
-  finishedAt: null
+  finishedAt: null,
+  lastError: null
 }
 
 function safe(value, limit = 1600) {
@@ -115,7 +116,8 @@ export function registerGitOpsBridge({
           status: old.status,
           action: old.action,
           target: old.target || null,
-          finishedAt: old.finishedAt || null
+          finishedAt: old.finishedAt || null,
+          lastError: old.error ? safe(old.error, 300) : null
         }
         return
       }
@@ -128,7 +130,8 @@ export function registerGitOpsBridge({
         status: 'running',
         action: request.action,
         target: request.target,
-        finishedAt: null
+        finishedAt: null,
+        lastError: null
       }
 
       try {
@@ -150,7 +153,8 @@ export function registerGitOpsBridge({
           status: detail.status,
           action: detail.action,
           target: detail.target,
-          finishedAt: detail.finishedAt
+          finishedAt: detail.finishedAt,
+          lastError: null
         }
 
         if (MUTATING.has(request.action)) {
@@ -183,14 +187,16 @@ export function registerGitOpsBridge({
           status: detail.status,
           action: detail.action,
           target: detail.target,
-          finishedAt: detail.finishedAt
+          finishedAt: detail.finishedAt,
+          lastError: detail.error
         }
       }
     } catch (error) {
       publicState = {
         ...publicState,
         status: 'invalid-request',
-        finishedAt: new Date().toISOString()
+        finishedAt: new Date().toISOString(),
+        lastError: safe(error.message, 300)
       }
     } finally {
       busy = false
