@@ -34,4 +34,5 @@ jobs:
           git add telemetry/fleet-probe.json
           git diff --cached --quiet && exit 0
           git commit -m "diag: record public fleet probe"
+          git pull --rebase origin diagnostics/public-health-mirror
           git push origin HEAD:diagnostics/public-health-mirror
