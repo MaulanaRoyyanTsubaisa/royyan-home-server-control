@@ -82,22 +82,77 @@ function safeText(value, limit = 2500) {
     .slice(0, limit)
 }
 
-async function publicProbe(app) {
-  const url = 'https://' + app + '.' + DOMAIN + '/'
+let publicUrlOverrides = {}
+try {
+  const parsed = JSON.parse(process.env.PUBLIC_URL_OVERRIDES_JSON || '{}')
+  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    publicUrlOverrides = parsed
+  }
+} catch {
+  publicUrlOverrides = {}
+}
+
+export function publicUrlForApp(app) {
+  const configured = publicUrlOverrides[app]
+  if (typeof configured === 'string' && /^https:\/\//i.test(configured)) {
+    return configured
+  }
+
+  // Portfolio is intentionally published on the apex domain, not portfolio.<domain>.
+  if (app === 'portfolio') return 'https://' + DOMAIN + '/'
+
+  return 'https://' + app + '.' + DOMAIN + '/'
+}
+
+async function probeOnce(app, url) {
   const started = Date.now()
   try {
     const response = await fetch(url, {
       redirect: 'manual',
-      signal: AbortSignal.timeout(6500),
-      headers: { 'User-Agent': 'royyan-infrastructure-os-v3/1' }
+      signal: AbortSignal.timeout(10_000),
+      headers: { 'User-Agent': 'royyan-infrastructure-os-v3/2' }
     })
     const status = response.status
     const reachable =
       (status >= 200 && status < 400) || status === 401 || status === 403 || status === 503
-    return { app, url, reachable, status, latencyMs: Date.now() - started }
+    return {
+      app,
+      url,
+      reachable,
+      status,
+      latencyMs: Date.now() - started,
+      error: null
+    }
   } catch (error) {
-    return { app, url, reachable: false, status: 0, latencyMs: Date.now() - started, error: safeText(error.message, 240) }
+    return {
+      app,
+      url,
+      reachable: false,
+      status: 0,
+      latencyMs: Date.now() - started,
+      error: safeText(error.message, 240)
+    }
   }
+}
+
+async function publicProbe(app) {
+  const url = publicUrlForApp(app)
+  let last = null
+
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    last = await probeOnce(app, url)
+
+    // Deterministic HTTP results do not need retry. Retry only transport failures
+    // and server-side 5xx responses (except intentional maintenance 503).
+    if (last.status > 0 && (last.status < 500 || last.status === 503)) {
+      return { ...last, attempts: attempt }
+    }
+    if (last.reachable) return { ...last, attempts: attempt }
+
+    if (attempt < 2) await sleep(350)
+  }
+
+  return { ...last, attempts: 2 }
 }
 
 async function resources() {

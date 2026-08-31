@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { parseBackupState, parseNaturalCommand } from './infrastructureV3.js'
+import { parseBackupState, parseNaturalCommand, publicUrlForApp } from './infrastructureV3.js'
 
 const apps = ['rumahin','tagihin','sajiin']
 
@@ -60,4 +60,13 @@ test('restart natural command requires explicit approval', () => {
   assert.equal(plan.command, 'restart')
   assert.equal(plan.app, 'rumahin')
   assert.equal(plan.mutating, true)
+})
+
+
+test('portfolio uses the apex public URL instead of a nonexistent subdomain', () => {
+  assert.equal(publicUrlForApp('portfolio'), 'https://maulanaroyyantsubaisa.my.id/')
+})
+
+test('normal apps keep the wildcard subdomain URL', () => {
+  assert.equal(publicUrlForApp('rumahin'), 'https://rumahin.maulanaroyyantsubaisa.my.id/')
 })
