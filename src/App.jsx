@@ -32,10 +32,12 @@ import {
   Zap
 } from 'lucide-react'
 import MissionControl from './MissionControl.jsx'
+import InfrastructureOS from './InfrastructureOS.jsx'
 
 const navItems = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'mission', label: 'Mission Control', icon: Zap },
+  { id: 'infra', label: 'Infrastructure OS', icon: CloudCog },
   { id: 'apps', label: 'Apps', icon: AppWindow },
   { id: 'deployments', label: 'Deployments', icon: Rocket },
   { id: 'backups', label: 'Backups', icon: DatabaseBackup },
@@ -574,6 +576,10 @@ export default function App() {
             apps={config?.apps || []}
             onOpenTelegram={() => setActive('telegram')}
           />
+        )}
+
+        {active === 'infra' && (
+          <InfrastructureOS apps={config?.apps || []} />
         )}
 
         {active === 'apps' && (
