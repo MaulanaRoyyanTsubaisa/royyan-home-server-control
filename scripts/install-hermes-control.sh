@@ -10,7 +10,9 @@ REPO="MaulanaRoyyanTsubaisa/royyan-home-server-control"
 APP_DIR="/srv/hermes-workspace/repos/royyan-home-server-control"
 DOMAIN="maulanaroyyantsubaisa.my.id"
 PUBLIC_HOST="control.${DOMAIN}"
-PORT="8094"
+CONTROL_PORT_START="8200"
+CONTROL_PORT_END="8299"
+PORT=""
 ENV_FILE="/etc/royyan-home-server-control.env"
 SERVICE_FILE="/etc/systemd/system/royyan-home-server-control.service"
 ROUTER="/etc/hermes-router/nginx.conf"
@@ -58,13 +60,69 @@ cd "$APP_DIR"
 npm install
 npm run build
 
-echo "==> 3/9 Configure protected environment"
+echo "==> 3/9 Select dedicated control port + protected environment"
+
+existing_port=""
+if [[ -f "$ENV_FILE" ]]; then
+  existing_port="$(sed -n 's/^PORT=//p' "$ENV_FILE" | tail -1)"
+fi
+
+port_is_free() {
+  local p="$1"
+  ! ss -H -ltn "sport = :$p" | grep -q .
+}
+
+port_is_our_control() {
+  local p="$1"
+  local body=""
+  body="$(curl -fsS --max-time 3 "http://127.0.0.1:$p/api/health" 2>/dev/null || true)"
+  [[ "$body" == *'"service":"royyan-home-server-control"'* ]]
+}
+
+if [[ "$existing_port" =~ ^[0-9]+$ ]] &&
+   (( existing_port >= CONTROL_PORT_START && existing_port <= CONTROL_PORT_END )); then
+  if port_is_free "$existing_port" || port_is_our_control "$existing_port"; then
+    PORT="$existing_port"
+  fi
+fi
+
+if [[ -z "$PORT" ]]; then
+  for p in $(seq "$CONTROL_PORT_START" "$CONTROL_PORT_END"); do
+    if port_is_free "$p"; then
+      PORT="$p"
+      break
+    fi
+  done
+fi
+
+[[ -n "$PORT" ]] || {
+  echo "ERROR: no free control port in ${CONTROL_PORT_START}-${CONTROL_PORT_END}" >&2
+  exit 1
+}
+
+echo "Selected control port: $PORT"
+
 NEW_PASSWORD=""
 if [[ ! -f "$ENV_FILE" ]]; then
   NEW_PASSWORD="$(openssl rand -hex 12)"
   SESSION_SECRET="$(openssl rand -hex 32)"
-  APPS="$(
-    python3 - <<'PY'
+  touch "$ENV_FILE"
+fi
+
+CURRENT_PASSWORD="$(sed -n 's/^CONTROL_ADMIN_PASSWORD=//p' "$ENV_FILE" | tail -1)"
+CURRENT_SECRET="$(sed -n 's/^CONTROL_SESSION_SECRET=//p' "$ENV_FILE" | tail -1)"
+
+if [[ -z "$CURRENT_PASSWORD" ]]; then
+  CURRENT_PASSWORD="$(openssl rand -hex 12)"
+  NEW_PASSWORD="$CURRENT_PASSWORD"
+fi
+
+if [[ -z "$CURRENT_SECRET" ]]; then
+  CURRENT_SECRET="$(openssl rand -hex 32)"
+fi
+
+APPS="$(
+  python3 - <<'PY'
 import json
 from pathlib import Path
 p = Path("/etc/hermes-ops/apps.json")
@@ -77,35 +135,55 @@ if p.exists():
         pass
 print(",".join(apps))
 PY
-  )"
-  [[ -n "$APPS" ]] || APPS="portfolio,opspilot,bantuai,niagabot,sajiin,kontenin,lamarin,learnwithroyyan,rumahin,tagihin,janjiin"
+)"
+[[ -n "$APPS" ]] || APPS="portfolio,opspilot,bantuai,niagabot,sajiin,kontenin,lamarin,learnwithroyyan,rumahin,tagihin,janjiin"
 
-  cat > "$ENV_FILE" <<EOF
-PORT=$PORT
-HOST=127.0.0.1
-HERMES_OPS_BIN=/usr/local/bin/hermes-ops-safe
-HERMES_DASHBOARD_BIN=/usr/local/bin/hermes-dashboard-safe
-HERMES_TELEGRAM_SEND_BIN=$TG_SAFE
-HERMES_APPS=$APPS
-GITHUB_OWNER=MaulanaRoyyanTsubaisa
-GITHUB_BRANCH=main
-PUBLIC_BASE_URL=https://$PUBLIC_HOST
-CONTROL_ADMIN_PASSWORD=$NEW_PASSWORD
-CONTROL_SESSION_SECRET=$SESSION_SECRET
-EOF
-else
-  grep -q '^CONTROL_ADMIN_PASSWORD=' "$ENV_FILE" || {
-    NEW_PASSWORD="$(openssl rand -hex 12)"
-    printf '\nCONTROL_ADMIN_PASSWORD=%s\n' "$NEW_PASSWORD" >> "$ENV_FILE"
-  }
-  grep -q '^CONTROL_SESSION_SECRET=' "$ENV_FILE" || {
-    printf 'CONTROL_SESSION_SECRET=%s\n' "$(openssl rand -hex 32)" >> "$ENV_FILE"
-  }
-  grep -q '^HERMES_DASHBOARD_BIN=' "$ENV_FILE" ||
-    printf 'HERMES_DASHBOARD_BIN=/usr/local/bin/hermes-dashboard-safe\n' >> "$ENV_FILE"
-  grep -q '^HERMES_TELEGRAM_SEND_BIN=' "$ENV_FILE" ||
-    printf 'HERMES_TELEGRAM_SEND_BIN=%s\n' "$TG_SAFE" >> "$ENV_FILE"
-fi
+cp -a "$ENV_FILE" "${ENV_FILE}.bak-$(date +%Y%m%d-%H%M%S)" 2>/dev/null || true
+
+python3 - "$ENV_FILE" "$PORT" "$APPS" "$PUBLIC_HOST" "$CURRENT_PASSWORD" "$CURRENT_SECRET" "$TG_SAFE" <<'PY'
+import sys
+from pathlib import Path
+
+p = Path(sys.argv[1])
+values = {
+    "PORT": sys.argv[2],
+    "HOST": "127.0.0.1",
+    "HERMES_OPS_BIN": "/usr/local/bin/hermes-ops-safe",
+    "HERMES_DASHBOARD_BIN": "/usr/local/bin/hermes-dashboard-safe",
+    "HERMES_TELEGRAM_SEND_BIN": sys.argv[7],
+    "HERMES_APPS": sys.argv[3],
+    "GITHUB_OWNER": "MaulanaRoyyanTsubaisa",
+    "GITHUB_BRANCH": "main",
+    "PUBLIC_BASE_URL": "https://" + sys.argv[4],
+    "CONTROL_ADMIN_PASSWORD": sys.argv[5],
+    "CONTROL_SESSION_SECRET": sys.argv[6],
+}
+
+existing = []
+if p.exists():
+    existing = p.read_text().splitlines()
+
+seen = set()
+out = []
+for line in existing:
+    if "=" not in line or line.lstrip().startswith("#"):
+        out.append(line)
+        continue
+    key = line.split("=", 1)[0]
+    if key in values:
+        if key not in seen:
+            out.append(f"{key}={values[key]}")
+            seen.add(key)
+    else:
+        out.append(line)
+
+for key, value in values.items():
+    if key not in seen:
+        out.append(f"{key}={value}")
+
+p.write_text("\n".join(out).rstrip() + "\n")
+PY
+
 chown root:hermes "$ENV_FILE"
 chmod 0640 "$ENV_FILE"
 
@@ -159,19 +237,31 @@ systemctl daemon-reload
 systemctl enable --now royyan-home-server-control.service
 systemctl restart royyan-home-server-control.service
 
+health_body=""
 for _ in 1 2 3 4 5; do
-  curl -fsS --max-time 5 "http://127.0.0.1:$PORT/api/health" >/dev/null && break
+  health_body="$(curl -fsS --max-time 5 "http://127.0.0.1:$PORT/api/health" 2>/dev/null || true)"
+  [[ "$health_body" == *'"service":"royyan-home-server-control"'* ]] && break
   sleep 2
 done
-curl -fsS --max-time 8 "http://127.0.0.1:$PORT/api/health" >/dev/null
 
-echo "==> 6/9 Attach to Hermes wildcard router"
+if [[ "$health_body" != *'"service":"royyan-home-server-control"'* ]]; then
+  echo "ERROR: control service did not claim its selected port $PORT." >&2
+  systemctl status royyan-home-server-control.service --no-pager -l || true
+  ss -ltnp | grep -E ":$PORT\\b" || true
+  exit 1
+fi
+
+echo "==> 6/9 Attach to Hermes wildcard router safely"
 [[ -f "$ROUTER" ]] || {
   echo "ERROR: Hermes router config missing: $ROUTER" >&2
   exit 1
 }
 
+ROUTER_BACKUP="${ROUTER}.bak-control-$(date +%Y%m%d-%H%M%S)"
+cp -a "$ROUTER" "$ROUTER_BACKUP"
+
 python3 - "$ROUTER" "$PUBLIC_HOST" "$PORT" <<'PY'
+import re
 import sys
 from pathlib import Path
 
@@ -180,14 +270,29 @@ host = sys.argv[2]
 port = int(sys.argv[3])
 s = path.read_text()
 
-if f"server_name {host};" in s:
-    raise SystemExit(0)
+pattern = re.compile(
+    rf'(?P<block>server\s*\{{(?:(?!server\s*\{{)[\s\S])*?server_name\s+{re.escape(host)};(?:(?!server\s*\{{)[\s\S])*?\}})',
+    re.M
+)
+m = pattern.search(s)
 
-marker = "  server {\n    listen 8090 default_server;"
-if marker not in s:
-    raise SystemExit("ERROR: Hermes default router marker not found")
+if m:
+    block = m.group("block")
+    new_block, n = re.subn(
+        r'proxy_pass\s+http://127\.0\.0\.1:\d+;',
+        f'proxy_pass http://127.0.0.1:{port};',
+        block,
+        count=1,
+    )
+    if n == 0:
+        raise SystemExit("ERROR: existing control router block has no proxy_pass")
+    s = s[:m.start("block")] + new_block + s[m.end("block"):]
+else:
+    marker = "  server {\n    listen 8090 default_server;"
+    if marker not in s:
+        raise SystemExit("ERROR: Hermes default router marker not found")
 
-block = f"""  server {{
+    block = f"""  server {{
     listen 8090;
     server_name {host};
     location / {{
@@ -200,18 +305,35 @@ block = f"""  server {{
   }}
 
 """
-path.write_text(s.replace(marker, block + marker, 1))
+    s = s.replace(marker, block + marker, 1)
+
+path.write_text(s)
 PY
 
-docker exec hermes-router nginx -t
-docker restart hermes-router >/dev/null
+if ! docker exec hermes-router nginx -t; then
+  cp -a "$ROUTER_BACKUP" "$ROUTER"
+  echo "ERROR: nginx test failed; original Hermes router restored." >&2
+  exit 1
+fi
 
-ROUTER_CODE="$(
-  curl -sS -o /dev/null -w '%{http_code}' --max-time 10 \
+docker exec hermes-router nginx -s reload
+echo "Hermes router reloaded without container restart ✅"
+
+ROUTER_BODY="$(
+  curl -sS --max-time 10 \
     -H "Host: $PUBLIC_HOST" \
     "http://127.0.0.1:8090/api/health" || true
 )"
-echo "Router health: HTTP ${ROUTER_CODE:-000}"
+
+if [[ "$ROUTER_BODY" != *'"service":"royyan-home-server-control"'* ]]; then
+  cp -a "$ROUTER_BACKUP" "$ROUTER"
+  docker exec hermes-router nginx -t >/dev/null
+  docker exec hermes-router nginx -s reload >/dev/null
+  echo "ERROR: router verification failed; original Hermes router restored." >&2
+  exit 1
+fi
+
+echo "Router health: Royyan control plane OK"
 
 echo "==> 7/9 Install zero-click control-panel deployment"
 cat > "$WORKER_ROOT" <<'EOF'
@@ -220,6 +342,7 @@ set -Eeuo pipefail
 
 APP_DIR="/srv/hermes-workspace/repos/royyan-home-server-control"
 SERVICE="royyan-home-server-control.service"
+ENV_FILE="/etc/royyan-home-server-control.env"
 PENDING="/run/hermes-control-deploy.pending"
 LOCK="/run/lock/hermes-control-deploy.lock"
 SEND="/usr/local/sbin/hermes-telegram-send"
@@ -245,12 +368,16 @@ deploy_once() {
 
   set +e
   (
+    set -a
+    source "$ENV_FILE"
+    set +a
     cd "$APP_DIR"
     npm install &&
     npm run build &&
     systemctl restart "$SERVICE" &&
     sleep 2 &&
-    curl -fsS --max-time 10 http://127.0.0.1:8094/api/health >/dev/null
+    health_body="$(curl -fsS --max-time 10 "http://127.0.0.1:$PORT/api/health")" &&
+    [[ "$health_body" == *'"service":"royyan-home-server-control"'* ]]
   )
   rc=$?
   set -e
@@ -407,7 +534,11 @@ fi
 
 echo "==> 9/9 Final checks"
 sudo -u hermes /usr/local/bin/hermes-dashboard-safe status >/dev/null
-curl -fsS --max-time 8 "http://127.0.0.1:$PORT/api/health" >/dev/null
+FINAL_HEALTH="$(curl -fsS --max-time 8 "http://127.0.0.1:$PORT/api/health")"
+[[ "$FINAL_HEALTH" == *'"service":"royyan-home-server-control"'* ]] || {
+  echo "ERROR: final local health identity check failed" >&2
+  exit 1
+}
 
 PUBLIC_CODE="$(
   curl -sS -o /dev/null -w '%{http_code}' --max-time 20 \
@@ -430,12 +561,11 @@ echo "Future GitHub pushes to main:"
 echo "  GitHub webhook -> Hermes -> queue -> build -> restart -> health -> rollback"
 echo
 
-if [[ -n "$NEW_PASSWORD" ]]; then
-  echo "ADMIN PASSWORD (shown only now):"
-  echo "  $NEW_PASSWORD"
-  echo
-  echo "Store it safely. It is NOT sent to Telegram."
-fi
+ADMIN_PASSWORD="$(sed -n 's/^CONTROL_ADMIN_PASSWORD=//p' "$ENV_FILE" | tail -1)"
+echo "ADMIN PASSWORD (terminal only; never sent to Telegram):"
+echo "  $ADMIN_PASSWORD"
+echo
+echo "Store it safely."
 
 if [[ ! "$PUBLIC_CODE" =~ ^(2|3)[0-9][0-9]$ ]]; then
   echo "WARNING: public Cloudflare health is not 2xx/3xx yet."
