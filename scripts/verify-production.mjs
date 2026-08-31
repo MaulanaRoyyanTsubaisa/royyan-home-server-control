@@ -23,7 +23,9 @@ function summary(data) {
     deepFailed: deep.failed,
     deepExpected: deep.expected,
     deepVersion: deep.version,
-    deepChecks: Array.isArray(deep.checks) ? deep.checks : []
+    deepChecks: Array.isArray(deep.checks) ? deep.checks : [],
+    v3: data?.infrastructureV3 || {},
+    bridge: data?.gitOpsBridge || {}
   }
 }
 
@@ -51,7 +53,9 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
       ' expected=' + (last.expected ?? '-') +
       ' deep=' + (last.deepStatus || 'missing') +
       ' deepPassed=' + (last.deepPassed ?? '-') +
-      ' deepFailed=' + (last.deepFailed ?? '-')
+      ' deepFailed=' + (last.deepFailed ?? '-') +
+      ' v3=' + (last.v3?.ready ? 'ready' : 'pending') +
+      ' bridge=' + (last.bridge?.status || 'missing')
     )
 
     const checks = data?.selfTest?.checks
@@ -75,9 +79,17 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
       data?.deepAcceptance?.expected === 5 &&
       Array.isArray(data?.deepAcceptance?.checks) &&
       data.deepAcceptance.checks.length === 5 &&
-      data.deepAcceptance.checks.every((item) => item.status === 'pass')
+      data.deepAcceptance.checks.every((item) => item.status === 'pass') &&
+      data?.infrastructureV3?.version === 3 &&
+      data?.infrastructureV3?.ready === true &&
+      Number.isFinite(data?.infrastructureV3?.reliability) &&
+      Number(data?.infrastructureV3?.total) > 0 &&
+      Number(data?.infrastructureV3?.timeMachineSamples) >= 1 &&
+      data?.gitOpsBridge?.enabled === true &&
+      data?.gitOpsBridge?.status === 'success' &&
+      Boolean(data?.gitOpsBridge?.lastId)
     ) {
-      console.log('[production-smoke] PASS: recurring 15/15 and one-time deep acceptance 5/5 are healthy.')
+      console.log('[production-smoke] PASS: 15/15 recurring + 5/5 deep + Infrastructure OS V3 + GitOps bridge are healthy.')
       process.exit(0)
     }
   } catch (error) {
@@ -88,7 +100,7 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
   if (attempt < attempts) await sleep(delayMs)
 }
 
-console.error('[production-smoke] FAIL: production did not reach recurring 15/15 + deep acceptance 5/5.')
+console.error('[production-smoke] FAIL: production did not reach 15/15 + deep 5/5 + V3 ready + GitOps bridge success.')
 if (last) console.error(JSON.stringify(last, null, 2))
 if (lastError) console.error('Last request error:', lastError)
 process.exit(1)
