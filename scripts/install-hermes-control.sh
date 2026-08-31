@@ -203,10 +203,45 @@ fi
 cat > "$SUDOERS" <<'EOF'
 hermes ALL=(root) NOPASSWD: /usr/local/sbin/hermes-control-queue
 hermes ALL=(root) NOPASSWD: /usr/local/sbin/hermes-telegram-send
+hermes ALL=(root) NOPASSWD: /usr/local/sbin/hermes-control-maintenance *
+hermes ALL=(root) NOPASSWD: /usr/local/sbin/hermes-backup-drill *
+hermes ALL=(root) NOPASSWD: /usr/local/sbin/hermes-resource-guard
 EOF
 chown root:root "$SUDOERS"
 chmod 0440 "$SUDOERS"
 visudo -cf "$SUDOERS"
+
+echo "==> 4.5/9 Install Mission Control safe helpers"
+
+install -o root -g root -m 0700 "$APP_DIR/scripts/hermes-control-maintenance.py" /usr/local/sbin/hermes-control-maintenance
+install -o root -g root -m 0700 "$APP_DIR/scripts/hermes-backup-drill.py" /usr/local/sbin/hermes-backup-drill
+python3 -m py_compile /usr/local/sbin/hermes-control-maintenance /usr/local/sbin/hermes-backup-drill
+
+cat > /usr/local/bin/hermes-control-maintenance-safe <<'EOF'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+exec sudo -n /usr/local/sbin/hermes-control-maintenance "$@"
+EOF
+chown root:root /usr/local/bin/hermes-control-maintenance-safe
+chmod 0755 /usr/local/bin/hermes-control-maintenance-safe
+
+cat > /usr/local/bin/hermes-backup-drill-safe <<'EOF'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+exec sudo -n /usr/local/sbin/hermes-backup-drill "$@"
+EOF
+chown root:root /usr/local/bin/hermes-backup-drill-safe
+chmod 0755 /usr/local/bin/hermes-backup-drill-safe
+
+if [[ -x /usr/local/sbin/hermes-resource-guard ]]; then
+  cat > /usr/local/bin/hermes-resource-guard-safe <<'EOF'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+exec sudo -n /usr/local/sbin/hermes-resource-guard
+EOF
+  chown root:root /usr/local/bin/hermes-resource-guard-safe
+  chmod 0755 /usr/local/bin/hermes-resource-guard-safe
+fi
 
 echo "==> 5/9 Install systemd service"
 NODE_BIN="$(command -v node)"
