@@ -7,6 +7,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 function summary(data) {
   const selfTest = data?.selfTest || {}
   const deep = data?.deepAcceptance || {}
+  const deepChecks = Array.isArray(deep.checks) ? deep.checks : []
   return {
     service: data?.service,
     authConfigured: data?.authConfigured,
@@ -21,9 +22,9 @@ function summary(data) {
     deepStatus: deep.status,
     deepPassed: deep.passed,
     deepFailed: deep.failed,
-    deepExpected: deep.expected,
+    deepExpected: deep.expected ?? deepChecks.length,
     deepVersion: deep.version,
-    deepChecks: Array.isArray(deep.checks) ? deep.checks : [],
+    deepChecks,
     v3: data?.infrastructureV3 || {},
     v3Validation: data?.v3Validation || {},
     bridge: data?.gitOpsBridge || {},
@@ -56,6 +57,7 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
       ' deep=' + (last.deepStatus || 'missing') +
       ' deepPassed=' + (last.deepPassed ?? '-') +
       ' deepFailed=' + (last.deepFailed ?? '-') +
+      ' deepExpected=' + (last.deepExpected ?? '-') +
       ' v3=' + (last.v3?.ready ? 'ready' : 'pending') +
       ' v3Recurring=' + (last.v3Validation?.recurring?.status || 'missing') +
       ' v3Acceptance=' + (last.v3Validation?.acceptance?.status || 'missing') +
@@ -69,6 +71,9 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
       checks.length === 15 &&
       checks.every((item) => /^\d{2}$/.test(item.id))
 
+    const deepChecks = data?.deepAcceptance?.checks
+    const deepExpected = data?.deepAcceptance?.expected ?? (Array.isArray(deepChecks) ? deepChecks.length : null)
+
     if (
       data?.service === 'royyan-home-server-control' &&
       data?.authConfigured === true &&
@@ -81,10 +86,10 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
       data?.deepAcceptance?.status === 'pass' &&
       data?.deepAcceptance?.passed === 5 &&
       data?.deepAcceptance?.failed === 0 &&
-      data?.deepAcceptance?.expected === 5 &&
-      Array.isArray(data?.deepAcceptance?.checks) &&
-      data.deepAcceptance.checks.length === 5 &&
-      data.deepAcceptance.checks.every((item) => item.status === 'pass') &&
+      deepExpected === 5 &&
+      Array.isArray(deepChecks) &&
+      deepChecks.length === 5 &&
+      deepChecks.every((item) => item.status === 'pass') &&
       data?.infrastructureV3?.version === 3 &&
       data?.infrastructureV3?.ready === true &&
       Number.isFinite(data?.infrastructureV3?.reliability) &&
