@@ -1,8 +1,8 @@
 {
-  "enabled": false,
-  "id": "disabled-default",
+  "enabled": true,
+  "id": "bridge-status-20260831-1527",
   "action": "status",
   "target": null,
-  "note": "GitOps Safe Ops Bridge. Set enabled=true and use an allowlisted action.",
+  "note": "Automated bridge acceptance test from ChatGPT via GitHub safe ops.",
   "confirm": null
 }
