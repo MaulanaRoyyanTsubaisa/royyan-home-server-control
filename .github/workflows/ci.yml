@@ -30,6 +30,7 @@ jobs:
       - name: Check server syntax
         run: |
           node --check server/index.js
+          node --check server/runtime.js
           node --check server/controlPlaneV2.js
           node --check server/productionSelfTest.js
           node --check server/deepProductionAcceptance.js
