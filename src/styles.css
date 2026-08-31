@@ -614,8 +614,9 @@ a { color: inherit; text-decoration: none; }
     left: 10px;
     right: 10px;
     bottom: 10px;
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
     border: 1px solid #202a39;
     background: rgba(9, 13, 20, .92);
     backdrop-filter: blur(18px);
@@ -623,7 +624,10 @@ a { color: inherit; text-decoration: none; }
     padding: 6px;
     box-shadow: 0 14px 50px rgba(0,0,0,.45);
   }
+  .mobile-nav::-webkit-scrollbar { display: none; }
   .mobile-nav button {
+    min-width: 70px;
+    flex: 0 0 70px;
     border: 0;
     background: transparent;
     color: #68758a;
