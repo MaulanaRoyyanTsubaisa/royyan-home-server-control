@@ -23,6 +23,20 @@ const SKILLS = [
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
+let publicV3State = {
+  version: 3,
+  ready: false,
+  snapshotAt: null,
+  reliability: null,
+  online: null,
+  total: null,
+  timeMachineSamples: 0
+}
+
+export function getInfrastructureV3PublicState() {
+  return publicV3State
+}
+
 async function ensureDir() {
   await mkdir(DATA_DIR, { recursive: true, mode: 0o700 })
 }
@@ -215,6 +229,16 @@ export function registerInfrastructureV3({
       snapshot.reliability = scoreFromSnapshot(snapshot, snapshot.hermes.backup)
       lastSnapshot = snapshot
       await appendJsonl(SNAPSHOT_FILE, snapshot)
+      const sampleCount = (await readJsonl(SNAPSHOT_FILE, 6000)).length
+      publicV3State = {
+        version: 3,
+        ready: true,
+        snapshotAt: snapshot.at,
+        reliability: snapshot.reliability.total,
+        online: snapshot.online,
+        total: snapshot.total,
+        timeMachineSamples: sampleCount
+      }
       await appendJsonl(BLACKBOX_FILE, {
         id: snapshot.id,
         at: snapshot.at,
