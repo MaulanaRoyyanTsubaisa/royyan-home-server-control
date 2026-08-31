@@ -1,8 +1,8 @@
 {
   "enabled": true,
-  "id": "status-v3-final-20260831-1757",
-  "action": "status",
-  "target": null,
-  "note": "Final V3 production validation after deployment convergence fix.",
-  "confirm": null
+  "id": "restart-learnwithroyyan-20260831-2157",
+  "action": "restart",
+  "target": "learnwithroyyan",
+  "note": "Recover managed app after public probe returned HTTP 502.",
+  "confirm": "GITOPS_SAFE_EXECUTE"
 }
