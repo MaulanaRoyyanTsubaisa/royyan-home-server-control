@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "\${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SERVICE_SRC="$ROOT/systemd/royyan-home-server-control.service"
 SERVICE_DST="/etc/systemd/system/royyan-home-server-control.service"
 ENV_DST="/etc/royyan-home-server-control.env"
-RUN_USER="\${SUDO_USER:-$USER}"
+RUN_USER="${SUDO_USER:-$USER}"
 NODE_BIN="$(command -v node)"
 
 echo "[1/5] Installing dependencies"
