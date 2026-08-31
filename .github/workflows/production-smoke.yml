@@ -1,0 +1,34 @@
+name: Production Smoke
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-smoke-main
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Poll production and verify all 15 features
+        env:
+          CONTROL_HEALTH_URL: https://control.maulanaroyyantsubaisa.my.id/api/health
+          CONTROL_HEALTH_ATTEMPTS: 36
+          CONTROL_HEALTH_DELAY_MS: 10000
+        run: node scripts/verify-production.mjs
