@@ -319,20 +319,31 @@ fi
 docker exec hermes-router nginx -s reload
 echo "Hermes router reloaded without container restart ✅"
 
-ROUTER_BODY="$(
-  curl -sS --max-time 10 \
-    -H "Host: $PUBLIC_HOST" \
-    "http://127.0.0.1:8090/api/health" || true
+LOADED_ROUTE="$(
+  docker exec hermes-router nginx -T 2>&1 |
+    grep -F "server_name $PUBLIC_HOST;" || true
 )"
 
-if [[ "$ROUTER_BODY" != *'"service":"royyan-home-server-control"'* ]]; then
+ROUTER_BODY="$(
+  docker exec hermes-router sh -c \
+    "wget -q -O- --timeout=10 --header='Host: $PUBLIC_HOST' http://127.0.0.1:8090/api/health" \
+    2>/dev/null || true
+)"
+
+if [[ -z "$LOADED_ROUTE" || "$ROUTER_BODY" != *'"service":"royyan-home-server-control"'* ]]; then
+  echo "Router candidate diagnostics:" >&2
+  echo "  loaded route: ${LOADED_ROUTE:-MISSING}" >&2
+  echo "  response: ${ROUTER_BODY:-EMPTY}" >&2
+
   cp -a "$ROUTER_BACKUP" "$ROUTER"
   docker exec hermes-router nginx -t >/dev/null
   docker exec hermes-router nginx -s reload >/dev/null
+
   echo "ERROR: router verification failed; original Hermes router restored." >&2
   exit 1
 fi
 
+echo "Router config loaded: $LOADED_ROUTE"
 echo "Router health: Royyan control plane OK"
 
 echo "==> 7/9 Install zero-click control-panel deployment"
