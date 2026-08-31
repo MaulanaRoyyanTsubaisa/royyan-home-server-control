@@ -240,6 +240,8 @@ export default function App() {
   const [github, setGithub] = useState(null)
   const [hermesStatus, setHermesStatus] = useState('')
   const [telegramText, setTelegramText] = useState('')
+  const [telegramCommand, setTelegramCommand] = useState('/server')
+  const [telegramCommandOutput, setTelegramCommandOutput] = useState('Run a Hermes command from the web without impersonating your Telegram account.')
   const [error, setError] = useState('')
 
   const checkAuth = async () => {
@@ -314,6 +316,28 @@ export default function App() {
       await refreshCore()
     } catch (err) {
       setConsoleOutput('ERROR: ' + err.message)
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const runTelegramCommand = async (event, explicitCommand) => {
+    event?.preventDefault?.()
+    const command = String(explicitCommand || telegramCommand).trim()
+    if (!command) return
+
+    setBusy('telegram-command')
+    setTelegramCommand(command)
+    setTelegramCommandOutput('Running ' + command + ' through Hermes…')
+    try {
+      const result = await api('/api/telegram/command', {
+        method: 'POST',
+        body: JSON.stringify({ command })
+      })
+      setTelegramCommandOutput(result.stdout || result.stderr || 'Command completed.')
+      await refreshCore()
+    } catch (err) {
+      setTelegramCommandOutput('ERROR: ' + err.message)
     } finally {
       setBusy('')
     }
@@ -658,33 +682,74 @@ export default function App() {
 
         {active === 'telegram' && (
           <div className="two-col wide-left">
-            <Panel title="Telegram bridge" eyebrow="WEB ↔ TELEGRAM">
+            <Panel title="Hermes command bridge" eyebrow="WEB → HERMES">
               <div className="connection-card">
                 <Bot size={30} />
                 <div>
-                  <strong>Hermes Telegram</strong>
-                  <span>{config?.telegram?.configured ? 'Using the existing Hermes safe Telegram sender' : 'Hermes Telegram sender is unavailable'}</span>
+                  <strong>Hermes Telegram controls</strong>
+                  <span>Web commands execute the same safe Hermes helpers as Telegram quick commands.</span>
                 </div>
                 <StatusPill online={config?.telegram?.configured}>
                   {config?.telegram?.configured ? 'Ready' : 'Setup needed'}
                 </StatusPill>
               </div>
-              <form className="telegram-form" onSubmit={sendTelegram}>
-                <textarea
-                  value={telegramText}
-                  onChange={(event) => setTelegramText(event.target.value)}
-                  placeholder="Send an operational note to Telegram…"
-                  maxLength={1000}
-                />
-                <button className="primary-btn" disabled={busy === 'telegram' || !telegramText.trim()}>
-                  <MessageCircle size={17} /> Send to Telegram
-                </button>
+
+              <div className="command-note">
+                <ShieldCheck size={16} />
+                <span>The web cannot impersonate your Telegram user account. Typing <strong>/server</strong> here runs the same Hermes command directly instead of sending "/server" as a bot message.</span>
+              </div>
+
+              <form className="telegram-command-form" onSubmit={(event) => runTelegramCommand(event)}>
+                <div className="telegram-command-input">
+                  <Terminal size={17} />
+                  <input
+                    value={telegramCommand}
+                    onChange={(event) => setTelegramCommand(event.target.value)}
+                    placeholder="/server"
+                    autoComplete="off"
+                  />
+                  <button className="primary-btn compact" disabled={busy === 'telegram-command' || !telegramCommand.trim()}>
+                    <Play size={15} /> Run
+                  </button>
+                </div>
+                <div className="command-chips">
+                  {['/server', '/apps', '/backup', '/deployments', '/incidents', '/serverhelp'].map((command) => (
+                    <button
+                      type="button"
+                      key={command}
+                      onClick={() => runTelegramCommand(null, command)}
+                      disabled={busy === 'telegram-command'}
+                    >
+                      {command}
+                    </button>
+                  ))}
+                </div>
               </form>
+
+              <pre className="console spaced tall">{telegramCommandOutput}</pre>
+
+              <div className="telegram-note-section">
+                <span className="eyebrow">BOT NOTIFICATION · OUTBOUND ONLY</span>
+                <p className="muted">
+                  This sends a message from the bot to your Telegram chat. Slash commands typed here are not treated as messages from your personal Telegram account.
+                </p>
+                <form className="telegram-form" onSubmit={sendTelegram}>
+                  <textarea
+                    value={telegramText}
+                    onChange={(event) => setTelegramText(event.target.value)}
+                    placeholder="Send a notification from Hermes bot…"
+                    maxLength={1000}
+                  />
+                  <button className="secondary-btn" disabled={busy === 'telegram' || !telegramText.trim()}>
+                    <MessageCircle size={17} /> Send bot notification
+                  </button>
+                </form>
+              </div>
             </Panel>
             <Panel title="Shared Hermes state" eyebrow="TELEGRAM ↔ WEB">
               <p className="muted">
-                Telegram quick commands and this website use the same root-controlled Hermes dashboard helpers.
-                Actions from either side are reflected in the same server state.
+                Your manual Telegram commands and web commands now call the same root-controlled Hermes dashboard helpers.
+                The Telegram bot remains the bot; the website does not pretend to be your Telegram account.
               </p>
               <pre className="console tall">{hermesStatus || 'Loading Hermes status…'}</pre>
             </Panel>

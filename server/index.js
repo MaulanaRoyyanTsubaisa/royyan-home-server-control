@@ -52,6 +52,16 @@ const allowedDashboardViews = new Set([
   'help'
 ])
 
+const telegramCommandViews = new Map([
+  ['/server', 'status'],
+  ['/home', 'status'],
+  ['/apps', 'apps'],
+  ['/backup', 'backup'],
+  ['/deployments', 'deployments'],
+  ['/incidents', 'incidents'],
+  ['/serverhelp', 'help']
+])
+
 const activity = []
 const loginAttempts = new Map()
 
@@ -484,6 +494,31 @@ app.get('/api/github', async (_req, res) => {
     })
   } catch (error) {
     res.status(502).json({ ok: false, error: error.message })
+  }
+})
+
+app.post('/api/telegram/command', async (req, res) => {
+  const raw = String(req.body?.command || '').trim()
+  const command = raw.split(/\s+/)[0]?.toLowerCase() || ''
+  const view = telegramCommandViews.get(command)
+
+  if (!view) {
+    return res.status(400).json({
+      ok: false,
+      error: 'Unsupported Hermes Telegram command',
+      allowed: [...telegramCommandViews.keys()]
+    })
+  }
+
+  try {
+    const result = await runDashboardView(view)
+    remember('telegram-command', 'Web ran ' + command + ' through Hermes dashboard helper')
+    res.json({ ok: true, command, view, ...result })
+  } catch (error) {
+    res.status(error.status || 500).json({
+      ok: false,
+      error: error.message || 'Hermes command failed'
+    })
   }
 })
 

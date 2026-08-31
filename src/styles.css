@@ -471,6 +471,62 @@ a { color: inherit; text-decoration: none; }
 }
 .telegram-form textarea:focus { border-color: #476898; box-shadow: 0 0 0 3px rgba(71,104,152,.12); }
 
+.command-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 14px;
+  padding: 11px 12px;
+  border: 1px solid rgba(93, 139, 255, .20);
+  border-radius: 11px;
+  background: rgba(53, 118, 255, .07);
+  color: #9aa8bc;
+  font-size: 11px;
+  line-height: 1.55;
+}
+.command-note svg { flex: 0 0 auto; color: #86a5ff; margin-top: 1px; }
+.command-note strong { color: #e8edf6; }
+
+.telegram-command-form { display: grid; gap: 9px; margin-top: 12px; }
+.telegram-command-input {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid #1b2738;
+  border-radius: 11px;
+  background: #070b11;
+  padding: 6px 7px 6px 11px;
+  color: #7184a4;
+}
+.telegram-command-input:focus-within { border-color: #476898; box-shadow: 0 0 0 3px rgba(71,104,152,.12); }
+.telegram-command-input input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #e8edf5;
+  font: inherit;
+  font-size: 12px;
+}
+.command-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.command-chips button {
+  border: 1px solid #202c3d;
+  border-radius: 999px;
+  background: #0d141e;
+  color: #8997aa;
+  padding: 6px 9px;
+  font-size: 10px;
+}
+.command-chips button:hover { border-color: #40516b; color: #fff; }
+.telegram-note-section {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #182130;
+}
+.telegram-note-section > p { margin: 7px 0 0; }
+
 .message-list { display: grid; gap: 10px; max-height: 500px; overflow: auto; }
 .message-row {
   display: grid;
