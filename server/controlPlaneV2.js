@@ -160,8 +160,8 @@ export function healthHint(raw, app) {
     .find((candidate) => candidate.toLowerCase().includes(app.toLowerCase()))
   if (!line) return null
   const lower = line.toLowerCase()
-  if (/✅|online|healthy|\bok\b/.test(lower)) return 'healthy'
-  if (/❌|offline|failed|unhealthy/.test(lower)) return 'unhealthy'
+  if (/❌|\boffline\b|\bfailed\b|\bunhealthy\b/.test(lower)) return 'unhealthy'
+  if (/✅|\bonline\b|\bhealthy\b|\bok\b/.test(lower)) return 'healthy'
   return 'unknown'
 }
 
