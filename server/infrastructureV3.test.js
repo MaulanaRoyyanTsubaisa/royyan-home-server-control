@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { parseNaturalCommand } from './infrastructureV3.js'
+import { parseBackupState, parseNaturalCommand } from './infrastructureV3.js'
 
 const apps = ['rumahin','tagihin','sajiin']
 
@@ -31,4 +31,33 @@ test('unknown natural command is not executable', () => {
   assert.equal(plan.intent, 'unknown')
   assert.equal(plan.command, null)
   assert.equal(plan.mutating, false)
+})
+
+
+test('V3 backup parser treats Failed: 0 as healthy', () => {
+  const state = parseBackupState('Backup verification: 10/10 OK\nFailed: 0\nStale: 0')
+  assert.equal(state.failure, false)
+  assert.equal(state.stale, false)
+  assert.equal(state.verified, 10)
+  assert.equal(state.total, 10)
+})
+
+test('V3 backup parser never hides corruption behind Failed: 0', () => {
+  const state = parseBackupState('Failed: 0\nCORRUPT backup detected')
+  assert.equal(state.failure, true)
+  assert.equal(state.corrupt, true)
+})
+
+test('V3 backup parser detects nonzero stale count', () => {
+  const state = parseBackupState('Failed: 0\nStale: 2')
+  assert.equal(state.failure, false)
+  assert.equal(state.stale, true)
+  assert.equal(state.staleCount, 2)
+})
+
+test('restart natural command requires explicit approval', () => {
+  const plan = parseNaturalCommand('restart rumahin', apps)
+  assert.equal(plan.command, 'restart')
+  assert.equal(plan.app, 'rumahin')
+  assert.equal(plan.mutating, true)
 })
