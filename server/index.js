@@ -19,7 +19,7 @@ import {
   getPublicDeepAcceptanceState,
   scheduleDeepProductionAcceptance
 } from './deepProductionAcceptance.js'
-import { registerInfrastructureV3 } from './infrastructureV3.js'
+import { getInfrastructureV3PublicState, registerInfrastructureV3 } from './infrastructureV3.js'
 import {
   getGitOpsBridgePublicState,
   registerGitOpsBridge
@@ -327,6 +327,7 @@ app.get('/api/health', (_req, res) => {
     selfTest: getPublicSelfTestState(),
     deepAcceptance: getPublicDeepAcceptanceState(),
     gitOpsBridge: getGitOpsBridgePublicState(),
+    infrastructureV3: getInfrastructureV3PublicState(),
     at: new Date().toISOString()
   })
 })
